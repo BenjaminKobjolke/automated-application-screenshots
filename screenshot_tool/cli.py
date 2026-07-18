@@ -6,18 +6,9 @@ from pathlib import Path
 
 import keyboard
 
+from . import config
 from .automation import DropdownAutomation
 from .capture import WindowCapture
-from .config import (
-    APP_PROCESS_NAME,
-    APP_TITLE_SUBSTRING,
-    DEFAULT_OUTPUT_DIR,
-    DELAY_AFTER_CHANGE,
-    LANGUAGE_CODES,
-    LANGUAGE_NAMES,
-    NAME_TO_CODE,
-    SCREENSHOT_FILENAME,
-)
 from .dropdown_reader import DropdownReader
 from .window_finder import WindowFinder
 
@@ -25,15 +16,15 @@ from .window_finder import WindowFinder
 class ScreenshotCLI:
     """Automated CLI for capturing multi-language screenshots."""
 
-    def __init__(self, output_dir: str = DEFAULT_OUTPUT_DIR, delay: float = DELAY_AFTER_CHANGE):
+    def __init__(self, output_dir: str | None = None, delay: float | None = None):
         """Initialize the CLI.
 
         Args:
-            output_dir: Directory to save screenshots
-            delay: Delay in seconds after each language change
+            output_dir: Directory to save screenshots (defaults to config value)
+            delay: Delay in seconds after each language change (defaults to config value)
         """
-        self.output_dir = Path(output_dir)
-        self.delay = delay
+        self.output_dir = Path(output_dir or config.DEFAULT_OUTPUT_DIR)
+        self.delay = config.DELAY_AFTER_CHANGE if delay is None else delay
         self.hwnd = None
         self.automation = None
         self.dropdown_reader = None
@@ -46,24 +37,24 @@ class ScreenshotCLI:
         Returns:
             True if window was found
         """
-        print(f"Looking for {APP_PROCESS_NAME}...")
+        print(f"Looking for {config.APP_PROCESS_NAME}...")
 
         # Try by process name first
-        self.hwnd = WindowFinder.find_by_process_name(APP_PROCESS_NAME)
+        self.hwnd = WindowFinder.find_by_process_name(config.APP_PROCESS_NAME)
         if self.hwnd:
             title = WindowFinder.get_window_title(self.hwnd)
             print(f"Found window by process name: '{title}' (handle: {self.hwnd})")
             return True
 
         # Fallback to title search
-        print(f"Process not found, searching by title '{APP_TITLE_SUBSTRING}'...")
-        self.hwnd = WindowFinder.find_by_title_substring(APP_TITLE_SUBSTRING)
+        print(f"Process not found, searching by title '{config.APP_TITLE_SUBSTRING}'...")
+        self.hwnd = WindowFinder.find_by_title_substring(config.APP_TITLE_SUBSTRING)
         if self.hwnd:
             title = WindowFinder.get_window_title(self.hwnd)
             print(f"Found window by title: '{title}' (handle: {self.hwnd})")
             return True
 
-        print("ERROR: Could not find KeyboardLayoutWatcher window.")
+        print(f"ERROR: Could not find window for '{config.APP_TITLE_SUBSTRING}'.")
         print("Make sure the application is running and visible.")
         return False
 
@@ -94,7 +85,7 @@ class ScreenshotCLI:
                 return False
 
             # Get language code from display name
-            lang_code = NAME_TO_CODE.get(display_name)
+            lang_code = config.NAME_TO_CODE.get(display_name)
             if not lang_code:
                 print(f"[{index}/{total}] ERROR: Unknown language '{display_name}'")
                 self.failed.append((display_name, "Unknown language name"))
@@ -104,7 +95,7 @@ class ScreenshotCLI:
             image = WindowCapture.capture_window(self.hwnd)
 
             # Save in language subfolder (e.g., screenshots/de/main.png)
-            output_path = self.output_dir / lang_code / SCREENSHOT_FILENAME
+            output_path = self.output_dir / lang_code / config.SCREENSHOT_FILENAME
             WindowCapture.save_screenshot(image, output_path)
 
             print(f"[{index}/{total}] {lang_code} - {display_name}... saved")
@@ -135,7 +126,7 @@ class ScreenshotCLI:
         print("Starting...\n")
 
         # Determine languages to capture
-        languages = LANGUAGE_CODES.copy()
+        languages = config.LANGUAGE_CODES.copy()
         if start_from:
             if start_from not in languages:
                 print(f"ERROR: Unknown language code '{start_from}'")
@@ -163,7 +154,8 @@ class ScreenshotCLI:
 
         # Go to first language in our list
         if not start_from:
-            print("Going to first language (Arabic)...")
+            first_name = config.LANGUAGE_NAMES.get(languages[0], languages[0])
+            print(f"Going to first language ({first_name})...")
             self.automation.go_to_first()
             time.sleep(0.2)
 
@@ -193,7 +185,7 @@ class ScreenshotCLI:
     def list_languages(self) -> None:
         """Print all supported language codes."""
         print("Supported language codes:\n")
-        for i, code in enumerate(LANGUAGE_CODES, 1):
-            name = LANGUAGE_NAMES.get(code, "")
+        for i, code in enumerate(config.LANGUAGE_CODES, 1):
+            name = config.LANGUAGE_NAMES.get(code, "")
             print(f"  {code:4} - {name}")
-        print(f"\nTotal: {len(LANGUAGE_CODES)} languages")
+        print(f"\nTotal: {len(config.LANGUAGE_CODES)} languages")

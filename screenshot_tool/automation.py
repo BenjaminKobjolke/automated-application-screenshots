@@ -4,7 +4,7 @@ import time
 
 import pyautogui
 
-from .config import DROPDOWN_RELATIVE_POS
+from . import config
 from .window_finder import WindowFinder
 
 
@@ -32,8 +32,8 @@ class DropdownAutomation:
         rect = WindowFinder.get_window_rect(self.hwnd)
         window_left, window_top = rect[0], rect[1]
 
-        dropdown_x = window_left + DROPDOWN_RELATIVE_POS[0]
-        dropdown_y = window_top + DROPDOWN_RELATIVE_POS[1]
+        dropdown_x = window_left + config.DROPDOWN_RELATIVE_POS[0]
+        dropdown_y = window_top + config.DROPDOWN_RELATIVE_POS[1]
 
         return (dropdown_x, dropdown_y)
 

@@ -1,110 +1,56 @@
-"""Configuration for the screenshot tool."""
+"""Configuration for the screenshot tool, loaded from a JSON config file."""
 
-# Target application settings
-APP_PROCESS_NAME = "KeyboardLayoutWatcher.exe"
-APP_TITLE_SUBSTRING = "Keyboard Layout Watcher"
+import json
+from pathlib import Path
 
-# Dropdown position relative to window top-left corner
-# The language dropdown is at Location(100, yPos) with Size(150, 24)
-# yPos is approximately 248 based on form layout
-DROPDOWN_RELATIVE_POS = (175, 248)  # Center of dropdown
+DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "config" / "keyboard-layout-watcher.json"
 
-# Language codes in the order they appear in the dropdown (alphabetical by code)
-LANGUAGE_CODES = [
-    "ar",  # العربية (Arabic)
-    "bg",  # Български (Bulgarian)
-    "bn",  # বাংলা (Bengali)
-    "cs",  # Čeština (Czech)
-    "da",  # Dansk (Danish)
-    "de",  # Deutsch (German)
-    "en",  # English
-    "es",  # Español (Spanish)
-    "et",  # Eesti (Estonian)
-    "fa",  # فارسی (Persian)
-    "fi",  # Suomi (Finnish)
-    "fr",  # Français (French)
-    "he",  # עברית (Hebrew)
-    "hi",  # हिन्दी (Hindi)
-    "hr",  # Hrvatski (Croatian)
-    "hu",  # Magyar (Hungarian)
-    "it",  # Italiano (Italian)
-    "ja",  # 日本語 (Japanese)
-    "ko",  # 한국어 (Korean)
-    "lt",  # Lietuvių (Lithuanian)
-    "lv",  # Latviešu (Latvian)
-    "ml",  # മലയാളം (Malayalam)
-    "mr",  # मराठी (Marathi)
-    "nl",  # Nederlands (Dutch)
-    "no",  # Norsk (Norwegian)
-    "pl",  # Polski (Polish)
-    "pt",  # Português (Portuguese)
-    "ro",  # Română (Romanian)
-    "ru",  # Русский (Russian)
-    "sk",  # Slovenčina (Slovak)
-    "sl",  # Slovenščina (Slovenian)
-    "sr",  # Српски (Serbian)
-    "sv",  # Svenska (Swedish)
-    "ta",  # தமிழ் (Tamil)
-    "te",  # తెలుగు (Telugu)
-    "th",  # ไทย (Thai)
-    "tr",  # Türkçe (Turkish)
-    "uk",  # Українська (Ukrainian)
-    "ur",  # اردو (Urdu)
-    "vi",  # Tiếng Việt (Vietnamese)
-    "zh",  # 中文 (Chinese)
+_REQUIRED_KEYS = [
+    "process_name",
+    "title_substring",
+    "dropdown_relative_pos",
+    "output_dir",
+    "screenshot_filename",
+    "delay_after_change",
+    "languages",
 ]
 
-# Language names for display
-LANGUAGE_NAMES = {
-    "ar": "العربية",
-    "bg": "Български",
-    "bn": "বাংলা",
-    "cs": "Čeština",
-    "da": "Dansk",
-    "de": "Deutsch",
-    "en": "English",
-    "es": "Español",
-    "et": "Eesti",
-    "fa": "فارسی",
-    "fi": "Suomi",
-    "fr": "Français",
-    "he": "עברית",
-    "hi": "हिन्दी",
-    "hr": "Hrvatski",
-    "hu": "Magyar",
-    "it": "Italiano",
-    "ja": "日本語",
-    "ko": "한국어",
-    "lt": "Lietuvių",
-    "lv": "Latviešu",
-    "ml": "മലയാളം",
-    "mr": "मराठी",
-    "nl": "Nederlands",
-    "no": "Norsk",
-    "pl": "Polski",
-    "pt": "Português",
-    "ro": "Română",
-    "ru": "Русский",
-    "sk": "Slovenčina",
-    "sl": "Slovenščina",
-    "sr": "Српски",
-    "sv": "Svenska",
-    "ta": "தமிழ்",
-    "te": "తెలుగు",
-    "th": "ไทย",
-    "tr": "Türkçe",
-    "uk": "Українська",
-    "ur": "اردو",
-    "vi": "Tiếng Việt",
-    "zh": "中文",
-}
 
-# Reverse lookup: display name -> language code
-NAME_TO_CODE = {name: code for code, name in LANGUAGE_NAMES.items()}
+def load_config(path: str | Path | None = None) -> None:
+    """Load an app config JSON and populate module attributes.
 
-# Output settings
-DEFAULT_OUTPUT_DIR = "screenshots"
-SCREENSHOT_FILENAME = "screenshot.png"  # Filename within each language subfolder
+    Args:
+        path: Path to config JSON. Defaults to DEFAULT_CONFIG_PATH.
 
-# Timing settings
-DELAY_AFTER_CHANGE = 0.3  # Seconds to wait after language change for UI refresh
+    Raises:
+        SystemExit: If the file is missing, invalid JSON, or lacks required keys.
+    """
+    global APP_PROCESS_NAME, APP_TITLE_SUBSTRING, DROPDOWN_RELATIVE_POS
+    global LANGUAGE_CODES, LANGUAGE_NAMES, NAME_TO_CODE
+    global DEFAULT_OUTPUT_DIR, SCREENSHOT_FILENAME, DELAY_AFTER_CHANGE
+
+    config_path = Path(path) if path else DEFAULT_CONFIG_PATH
+    if not config_path.is_file():
+        raise SystemExit(f"ERROR: Config file not found: {config_path}")
+
+    try:
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        raise SystemExit(f"ERROR: Invalid JSON in {config_path}: {e}")
+
+    missing = [key for key in _REQUIRED_KEYS if key not in data]
+    if missing:
+        raise SystemExit(f"ERROR: Config {config_path} is missing keys: {', '.join(missing)}")
+
+    APP_PROCESS_NAME = data["process_name"]
+    APP_TITLE_SUBSTRING = data["title_substring"]
+    DROPDOWN_RELATIVE_POS = tuple(data["dropdown_relative_pos"])
+    LANGUAGE_NAMES = data["languages"]
+    LANGUAGE_CODES = sorted(LANGUAGE_NAMES)
+    NAME_TO_CODE = {name: code for code, name in LANGUAGE_NAMES.items()}
+    DEFAULT_OUTPUT_DIR = data["output_dir"]
+    SCREENSHOT_FILENAME = data["screenshot_filename"]
+    DELAY_AFTER_CHANGE = float(data["delay_after_change"])
+
+
+load_config()

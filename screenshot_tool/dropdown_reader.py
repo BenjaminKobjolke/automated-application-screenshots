@@ -3,7 +3,7 @@
 from pywinauto import Application
 from pywinauto.findwindows import ElementNotFoundError
 
-from .config import APP_PROCESS_NAME, NAME_TO_CODE
+from . import config
 
 
 class DropdownReader:
@@ -94,11 +94,11 @@ class DropdownReader:
         display_name = self.get_selected_language()
         if display_name:
             # Look up the code from the display name
-            code = NAME_TO_CODE.get(display_name)
+            code = config.NAME_TO_CODE.get(display_name)
             if code:
                 return code
             # If exact match fails, try case-insensitive match
-            for name, code in NAME_TO_CODE.items():
+            for name, code in config.NAME_TO_CODE.items():
                 if name.lower() == display_name.lower():
                     return code
         return None

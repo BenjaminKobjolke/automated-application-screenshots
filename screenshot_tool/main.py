@@ -2,22 +2,24 @@
 """
 Automated Screenshot Tool for Multi-Language Windows Applications
 
-Captures screenshots of KeyboardLayoutWatcher in all 41 supported languages
-by automatically cycling through the language dropdown.
+Captures screenshots of a target application in all its supported languages
+by automatically cycling through its language dropdown. The target app is
+defined by a JSON config file (default: config/keyboard-layout-watcher.json).
 
 Usage:
     uv run screenshot-tool              # Capture all languages
     uv run screenshot-tool --list       # List supported languages
     uv run screenshot-tool --start-from de  # Start from German
     uv run screenshot-tool --delay 0.5  # Custom delay between captures
+    uv run screenshot-tool --config config/other-app.json  # Other target app
 """
 
 import argparse
 import io
 import sys
 
+from . import config
 from .cli import ScreenshotCLI
-from .config import DEFAULT_OUTPUT_DIR, DELAY_AFTER_CHANGE
 
 
 def setup_utf8_console() -> None:
@@ -36,22 +38,28 @@ def main() -> int:
     """
     setup_utf8_console()
     parser = argparse.ArgumentParser(
-        description='Capture screenshots of KeyboardLayoutWatcher in multiple languages',
+        description='Capture screenshots of a Windows application in multiple languages',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  uv run screenshot-tool                    # Capture all 41 languages
+  uv run screenshot-tool                    # Capture all languages
   uv run screenshot-tool --list             # Show all language codes
   uv run screenshot-tool --start-from de    # Start from German
   uv run screenshot-tool --output ./imgs    # Custom output directory
   uv run screenshot-tool --delay 0.5        # Wait 0.5s between captures
+  uv run screenshot-tool --config config/other-app.json  # Other target app
         """
     )
 
     parser.add_argument(
+        '--config', '-c',
+        metavar='PATH',
+        help=f'App config JSON file (default: {config.DEFAULT_CONFIG_PATH})'
+    )
+
+    parser.add_argument(
         '--output', '-o',
-        default=DEFAULT_OUTPUT_DIR,
-        help=f'Output directory (default: {DEFAULT_OUTPUT_DIR})'
+        help='Output directory (default: from config)'
     )
 
     parser.add_argument(
@@ -63,8 +71,7 @@ Examples:
     parser.add_argument(
         '--delay', '-d',
         type=float,
-        default=DELAY_AFTER_CHANGE,
-        help=f'Delay in seconds after each language change (default: {DELAY_AFTER_CHANGE})'
+        help='Delay in seconds after each language change (default: from config)'
     )
 
     parser.add_argument(
@@ -74,6 +81,9 @@ Examples:
     )
 
     args = parser.parse_args()
+
+    if args.config:
+        config.load_config(args.config)
 
     # Create CLI instance
     cli = ScreenshotCLI(output_dir=args.output, delay=args.delay)
