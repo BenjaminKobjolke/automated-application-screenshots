@@ -32,8 +32,8 @@ class DropdownAutomation:
         rect = WindowFinder.get_window_rect(self.hwnd)
         window_left, window_top = rect[0], rect[1]
 
-        dropdown_x = window_left + config.DROPDOWN_RELATIVE_POS[0]
-        dropdown_y = window_top + config.DROPDOWN_RELATIVE_POS[1]
+        dropdown_x = window_left + config.settings.dropdown_relative_pos[0]
+        dropdown_y = window_top + config.settings.dropdown_relative_pos[1]
 
         return (dropdown_x, dropdown_y)
 
@@ -45,17 +45,17 @@ class DropdownAutomation:
 
     def go_to_first(self) -> None:
         """Press Home key to go to first item in dropdown."""
-        pyautogui.press('home')
+        pyautogui.press("home")
         time.sleep(0.1)
 
     def next_item(self) -> None:
         """Press Down arrow to move to next item."""
-        pyautogui.press('down')
+        pyautogui.press("down")
 
     def select_current(self) -> None:
         """Press Enter to select current item (if dropdown is open)."""
-        pyautogui.press('enter')
+        pyautogui.press("enter")
 
     def close_dropdown(self) -> None:
         """Press Escape to close dropdown without selecting."""
-        pyautogui.press('escape')
+        pyautogui.press("escape")

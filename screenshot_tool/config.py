@@ -1,6 +1,7 @@
 """Configuration for the screenshot tool, loaded from a JSON config file."""
 
 import json
+from dataclasses import dataclass, field
 from pathlib import Path
 
 DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "config" / "keyboard-layout-watcher.json"
@@ -16,8 +17,30 @@ _REQUIRED_KEYS = [
 ]
 
 
-def load_config(path: str | Path | None = None) -> None:
-    """Load an app config JSON and populate module attributes.
+@dataclass(frozen=True)
+class Settings:
+    """Typed app configuration; the one object all modules read from."""
+
+    process_name: str
+    title_substring: str
+    dropdown_relative_pos: tuple[int, int]
+    output_dir: str
+    screenshot_filename: str
+    delay_after_change: float
+    language_names: dict[str, str]
+    language_codes: list[str] = field(init=False)
+    name_to_code: dict[str, str] = field(init=False)
+
+    def __post_init__(self) -> None:
+        # Derived, not passed in: codes and reverse lookup always match language_names
+        object.__setattr__(self, "language_codes", sorted(self.language_names))
+        object.__setattr__(
+            self, "name_to_code", {name: code for code, name in self.language_names.items()}
+        )
+
+
+def load_config(path: str | Path | None = None) -> Settings:
+    """Load an app config JSON and return (and remember) the Settings.
 
     Args:
         path: Path to config JSON. Defaults to DEFAULT_CONFIG_PATH.
@@ -25,9 +48,7 @@ def load_config(path: str | Path | None = None) -> None:
     Raises:
         SystemExit: If the file is missing, invalid JSON, or lacks required keys.
     """
-    global APP_PROCESS_NAME, APP_TITLE_SUBSTRING, DROPDOWN_RELATIVE_POS
-    global LANGUAGE_CODES, LANGUAGE_NAMES, NAME_TO_CODE
-    global DEFAULT_OUTPUT_DIR, SCREENSHOT_FILENAME, DELAY_AFTER_CHANGE
+    global settings
 
     config_path = Path(path) if path else DEFAULT_CONFIG_PATH
     if not config_path.is_file():
@@ -42,15 +63,17 @@ def load_config(path: str | Path | None = None) -> None:
     if missing:
         raise SystemExit(f"ERROR: Config {config_path} is missing keys: {', '.join(missing)}")
 
-    APP_PROCESS_NAME = data["process_name"]
-    APP_TITLE_SUBSTRING = data["title_substring"]
-    DROPDOWN_RELATIVE_POS = tuple(data["dropdown_relative_pos"])
-    LANGUAGE_NAMES = data["languages"]
-    LANGUAGE_CODES = sorted(LANGUAGE_NAMES)
-    NAME_TO_CODE = {name: code for code, name in LANGUAGE_NAMES.items()}
-    DEFAULT_OUTPUT_DIR = data["output_dir"]
-    SCREENSHOT_FILENAME = data["screenshot_filename"]
-    DELAY_AFTER_CHANGE = float(data["delay_after_change"])
+    pos = data["dropdown_relative_pos"]
+    settings = Settings(
+        process_name=data["process_name"],
+        title_substring=data["title_substring"],
+        dropdown_relative_pos=(int(pos[0]), int(pos[1])),
+        output_dir=data["output_dir"],
+        screenshot_filename=data["screenshot_filename"],
+        delay_after_change=float(data["delay_after_change"]),
+        language_names=data["languages"],
+    )
+    return settings
 
 
-load_config()
+settings: Settings = load_config()

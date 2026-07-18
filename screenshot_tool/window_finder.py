@@ -17,6 +17,28 @@ class WindowFinder:
     """Find Windows application windows using various strategies."""
 
     @staticmethod
+    def _find_visible_window(predicate) -> int | None:
+        """Enumerate visible top-level windows and return the first matching one.
+
+        Args:
+            predicate: Callable taking a window handle, returning True on match
+
+        Returns:
+            Window handle (HWND) or None if not found
+        """
+        result: list[int] = []
+
+        def enum_callback(hwnd, _):
+            if user32.IsWindowVisible(hwnd) and predicate(hwnd):
+                result.append(hwnd)
+            return True
+
+        enum_func = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+        user32.EnumWindows(enum_func(enum_callback), 0)
+
+        return result[0] if result else None
+
+    @staticmethod
     def find_by_process_name(process_name: str) -> int | None:
         """Find main window handle by process name.
 
@@ -26,9 +48,9 @@ class WindowFinder:
         Returns:
             Window handle (HWND) or None if not found
         """
-        for proc in psutil.process_iter(['pid', 'name']):
-            if proc.info['name'] and proc.info['name'].lower() == process_name.lower():
-                pid = proc.info['pid']
+        for proc in psutil.process_iter(["pid", "name"]):
+            if proc.info["name"] and proc.info["name"].lower() == process_name.lower():
+                pid = proc.info["pid"]
                 hwnd = WindowFinder._get_window_by_pid(pid)
                 if hwnd:
                     return hwnd
@@ -44,23 +66,9 @@ class WindowFinder:
         Returns:
             Window handle (HWND) or None if not found
         """
-        result = []
-
-        def enum_callback(hwnd, _):
-            if user32.IsWindowVisible(hwnd):
-                length = user32.GetWindowTextLengthW(hwnd)
-                if length > 0:
-                    buffer = ctypes.create_unicode_buffer(length + 1)
-                    user32.GetWindowTextW(hwnd, buffer, length + 1)
-                    title = buffer.value
-                    if substring.lower() in title.lower():
-                        result.append(hwnd)
-            return True
-
-        enum_func = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
-        user32.EnumWindows(enum_func(enum_callback), 0)
-
-        return result[0] if result else None
+        return WindowFinder._find_visible_window(
+            lambda hwnd: substring.lower() in WindowFinder.get_window_title(hwnd).lower()
+        )
 
     @staticmethod
     def _get_window_by_pid(pid: int) -> int | None:
@@ -72,23 +80,14 @@ class WindowFinder:
         Returns:
             Window handle (HWND) or None if not found
         """
-        result = []
 
-        def enum_callback(hwnd, _):
-            if user32.IsWindowVisible(hwnd):
-                window_pid = wintypes.DWORD()
-                user32.GetWindowThreadProcessId(hwnd, ctypes.byref(window_pid))
-                if window_pid.value == pid:
-                    # Check if it's a main window (has a title)
-                    length = user32.GetWindowTextLengthW(hwnd)
-                    if length > 0:
-                        result.append(hwnd)
-            return True
+        def belongs_to_pid(hwnd: int) -> bool:
+            window_pid = wintypes.DWORD()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(window_pid))
+            # Titleless windows are not main windows
+            return window_pid.value == pid and WindowFinder.get_window_title(hwnd) != ""
 
-        enum_func = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
-        user32.EnumWindows(enum_func(enum_callback), 0)
-
-        return result[0] if result else None
+        return WindowFinder._find_visible_window(belongs_to_pid)
 
     @staticmethod
     def get_window_rect(hwnd: int) -> tuple[int, int, int, int]:

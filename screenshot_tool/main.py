@@ -24,10 +24,10 @@ from .cli import ScreenshotCLI
 
 def setup_utf8_console() -> None:
     """Configure console for UTF-8 output on Windows."""
-    if sys.platform == 'win32':
+    if sys.platform == "win32":
         # Set console output to UTF-8
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 
 def main() -> int:
@@ -38,7 +38,7 @@ def main() -> int:
     """
     setup_utf8_console()
     parser = argparse.ArgumentParser(
-        description='Capture screenshots of a Windows application in multiple languages',
+        description="Capture screenshots of a Windows application in multiple languages",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -48,36 +48,34 @@ Examples:
   uv run screenshot-tool --output ./imgs    # Custom output directory
   uv run screenshot-tool --delay 0.5        # Wait 0.5s between captures
   uv run screenshot-tool --config config/other-app.json  # Other target app
-        """
+        """,
     )
 
     parser.add_argument(
-        '--config', '-c',
-        metavar='PATH',
-        help=f'App config JSON file (default: {config.DEFAULT_CONFIG_PATH})'
+        "--config",
+        "-c",
+        metavar="PATH",
+        help=f"App config JSON file (default: {config.DEFAULT_CONFIG_PATH})",
+    )
+
+    parser.add_argument("--output", "-o", help="Output directory (default: from config)")
+
+    parser.add_argument(
+        "--start-from",
+        "-s",
+        metavar="CODE",
+        help="Language code to start from (skips earlier languages)",
     )
 
     parser.add_argument(
-        '--output', '-o',
-        help='Output directory (default: from config)'
-    )
-
-    parser.add_argument(
-        '--start-from', '-s',
-        metavar='CODE',
-        help='Language code to start from (skips earlier languages)'
-    )
-
-    parser.add_argument(
-        '--delay', '-d',
+        "--delay",
+        "-d",
         type=float,
-        help='Delay in seconds after each language change (default: from config)'
+        help="Delay in seconds after each language change (default: from config)",
     )
 
     parser.add_argument(
-        '--list', '-l',
-        action='store_true',
-        help='List all supported language codes and exit'
+        "--list", "-l", action="store_true", help="List all supported language codes and exit"
     )
 
     args = parser.parse_args()
@@ -97,5 +95,5 @@ Examples:
     return cli.run_automated(start_from=args.start_from)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

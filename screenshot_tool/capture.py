@@ -1,21 +1,19 @@
 """Screenshot capture logic using pyautogui for reliable cross-DPI capture."""
 
 import ctypes
-from ctypes import wintypes
 from pathlib import Path
 
 import pyautogui
 from PIL import Image
 
-# Load Windows DLLs
-user32 = ctypes.windll.user32
+from .window_finder import WindowFinder
 
 # Enable DPI awareness for accurate window positioning
 try:
     ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE
 except Exception:
     try:
-        user32.SetProcessDPIAware()
+        ctypes.windll.user32.SetProcessDPIAware()
     except Exception:
         pass
 
@@ -38,14 +36,9 @@ class WindowCapture:
         Raises:
             RuntimeError: If capture fails
         """
-        # Get window rectangle using DPI-aware API
-        rect = wintypes.RECT()
-        user32.GetWindowRect(hwnd, ctypes.byref(rect))
-
-        left = rect.left
-        top = rect.top
-        width = rect.right - rect.left
-        height = rect.bottom - rect.top
+        left, top, right, bottom = WindowFinder.get_window_rect(hwnd)
+        width = right - left
+        height = bottom - top
 
         if width <= 0 or height <= 0:
             raise RuntimeError(f"Invalid window dimensions: {width}x{height}")
@@ -65,4 +58,4 @@ class WindowCapture:
             output_path: Path where to save the image
         """
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        image.save(output_path, 'PNG', optimize=True)
+        image.save(output_path, "PNG", optimize=True)

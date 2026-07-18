@@ -1,9 +1,12 @@
 """Read dropdown values using pywinauto UI Automation."""
 
+from typing import Any
+
 from pywinauto import Application
 from pywinauto.findwindows import ElementNotFoundError
 
 from . import config
+from .app_logger import AppLogger
 
 
 class DropdownReader:
@@ -16,8 +19,9 @@ class DropdownReader:
             hwnd: Window handle of the target application
         """
         self.hwnd = hwnd
-        self._app = None
-        self._window = None
+        # pywinauto ships no type stubs, so both stay Any past the boundary
+        self._app: Any = None
+        self._window: Any = None
 
     def connect(self) -> bool:
         """Connect to the application window.
@@ -31,7 +35,7 @@ class DropdownReader:
             self._window = self._app.window(handle=self.hwnd)
             return True
         except Exception as e:
-            print(f"Failed to connect to window: {e}")
+            AppLogger.error(f"Failed to connect to window: {e}")
             return False
 
     def get_selected_language(self) -> str | None:
@@ -70,7 +74,7 @@ class DropdownReader:
 
             # Another alternative: try to get from legacy patterns
             try:
-                selected_text = combobox.legacy_properties().get('Value', '')
+                selected_text = combobox.legacy_properties().get("Value", "")
                 if selected_text:
                     return selected_text
             except Exception:
@@ -79,10 +83,10 @@ class DropdownReader:
             return None
 
         except ElementNotFoundError:
-            print("ComboBox not found in window")
+            AppLogger.error("ComboBox not found in window")
             return None
         except Exception as e:
-            print(f"Error reading dropdown: {e}")
+            AppLogger.error(f"Error reading dropdown: {e}")
             return None
 
     def get_language_code(self) -> str | None:
@@ -92,13 +96,23 @@ class DropdownReader:
             The language code (e.g., "de" for "Deutsch"), or None if not found
         """
         display_name = self.get_selected_language()
-        if display_name:
-            # Look up the code from the display name
-            code = config.NAME_TO_CODE.get(display_name)
-            if code:
+        return self.lookup_code(display_name) if display_name else None
+
+    @staticmethod
+    def lookup_code(display_name: str) -> str | None:
+        """Map a language display name to its code.
+
+        Args:
+            display_name: Language name as shown in the dropdown (e.g., "Deutsch")
+
+        Returns:
+            The language code (e.g., "de"), or None if unknown
+        """
+        code = config.settings.name_to_code.get(display_name)
+        if code:
+            return code
+        # If exact match fails, try case-insensitive match
+        for name, code in config.settings.name_to_code.items():
+            if name.lower() == display_name.lower():
                 return code
-            # If exact match fails, try case-insensitive match
-            for name, code in config.NAME_TO_CODE.items():
-                if name.lower() == display_name.lower():
-                    return code
         return None
