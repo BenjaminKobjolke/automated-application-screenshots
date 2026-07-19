@@ -19,6 +19,18 @@ HWND_TOPMOST = -1
 # Load Windows DLLs
 user32 = ctypes.windll.user32
 kernel32 = ctypes.windll.kernel32
+dwmapi = ctypes.windll.dwmapi
+
+# DwmGetWindowAttribute: the real visible frame, excluding the invisible resize
+# border that GetWindowRect includes.
+DWMWA_EXTENDED_FRAME_BOUNDS = 9
+dwmapi.DwmGetWindowAttribute.restype = ctypes.c_long  # HRESULT
+dwmapi.DwmGetWindowAttribute.argtypes = [
+    wintypes.HWND,
+    wintypes.DWORD,
+    ctypes.c_void_p,
+    wintypes.DWORD,
+]
 
 
 class _MONITORINFO(ctypes.Structure):
@@ -99,22 +111,6 @@ class WindowFinder:
         return None
 
     @staticmethod
-    def visible_windows_by_title(substring: str) -> list[int]:
-        """All visible top-level windows whose title contains ``substring``."""
-        result: list[int] = []
-
-        def enum_callback(hwnd, _):
-            if user32.IsWindowVisible(hwnd) and substring.lower() in (
-                WindowFinder.get_window_title(hwnd).lower()
-            ):
-                result.append(hwnd)
-            return True
-
-        enum_func = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
-        user32.EnumWindows(enum_func(enum_callback), 0)
-        return result
-
-    @staticmethod
     def set_topmost(hwnd: int) -> None:
         """Raise the window above all others (reliable, unlike SetForegroundWindow).
 
@@ -173,6 +169,37 @@ class WindowFinder:
         rect = wintypes.RECT()
         user32.GetWindowRect(hwnd, ctypes.byref(rect))
         return (rect.left, rect.top, rect.right, rect.bottom)
+
+    @staticmethod
+    def get_extended_frame_bounds(hwnd: int) -> tuple[int, int, int, int]:
+        """Real visible window rect (left, top, right, bottom), excluding the
+        invisible DWM resize border that ``GetWindowRect`` includes.
+
+        Falls back to ``GetWindowRect`` if the DWM query fails.
+        """
+        rect = wintypes.RECT()
+        hr = dwmapi.DwmGetWindowAttribute(
+            wintypes.HWND(hwnd),
+            DWMWA_EXTENDED_FRAME_BOUNDS,
+            ctypes.byref(rect),
+            ctypes.sizeof(rect),
+        )
+        if hr != 0:
+            return WindowFinder.get_window_rect(hwnd)
+        return (rect.left, rect.top, rect.right, rect.bottom)
+
+    @staticmethod
+    def get_work_area(hwnd: int) -> tuple[int, int, int, int] | None:
+        """Monitor work area (left, top, right, bottom) for the window's monitor.
+
+        The work area excludes the taskbar; None if the query fails.
+        """
+        monitor = user32.MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST)
+        info = _MONITORINFO()
+        info.cbSize = ctypes.sizeof(_MONITORINFO)
+        if not user32.GetMonitorInfoW(monitor, ctypes.byref(info)):
+            return None
+        return (info.rcWork.left, info.rcWork.top, info.rcWork.right, info.rcWork.bottom)
 
     @staticmethod
     def get_window_title(hwnd: int) -> str:

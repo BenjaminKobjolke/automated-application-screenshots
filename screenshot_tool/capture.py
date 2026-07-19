@@ -42,7 +42,13 @@ class WindowCapture:
         Raises:
             RuntimeError: If capture fails
         """
-        left, top, right, bottom = WindowFinder.get_window_rect(hwnd)
+        # Real visible bounds (no invisible DWM border), clamped to the work area
+        # so the taskbar can't appear even when the window overlaps it.
+        left, top, right, bottom = WindowFinder.get_extended_frame_bounds(hwnd)
+        work = WindowFinder.get_work_area(hwnd)
+        if work is not None:
+            left, top = max(left, work[0]), max(top, work[1])
+            right, bottom = min(right, work[2]), min(bottom, work[3])
         width = right - left
         height = bottom - top
 

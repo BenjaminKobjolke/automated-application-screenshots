@@ -20,11 +20,18 @@ _FRAME_WARN_THRESHOLD = 1000
 class Recorder(threading.Thread):
     """Captures a window region at a fixed fps until stopped."""
 
-    def __init__(self, hwnd: int, fps: int, stills_dir: Path) -> None:
+    def __init__(
+        self,
+        hwnd: int,
+        fps: int,
+        stills_dir: Path,
+        crop: tuple[int, int, int, int] = (0, 0, 0, 0),
+    ) -> None:
         super().__init__(daemon=True)
         self.hwnd = hwnd
         self.fps = fps
         self.stills_dir = stills_dir
+        self.crop = crop  # (top, right, bottom, left) px removed from each frame
         self.frames: list[tuple[float, Image.Image]] = []
         self.saved_stills: list[str] = []
         self._pending_stills: list[str] = []
@@ -49,6 +56,7 @@ class Recorder(threading.Thread):
             except Exception as e:
                 AppLogger.error(f"Frame capture failed, stopping recording: {e}")
                 return
+            image = self._apply_crop(image)
             self.frames.append((time.perf_counter(), image))
             self._save_pending_stills(image)
             if len(self.frames) > _FRAME_WARN_THRESHOLD and not self._warned:
@@ -63,6 +71,17 @@ class Recorder(threading.Thread):
             else:
                 # Capture slower than fps: skip missed ticks instead of drifting
                 next_tick = time.perf_counter()
+
+    def _apply_crop(self, image: Image.Image) -> Image.Image:
+        """Remove the configured (top, right, bottom, left) inset from a frame."""
+        top, right, bottom, left = self.crop
+        if not (top or right or bottom or left):
+            return image
+        w, h = image.size
+        box = (left, top, w - right, h - bottom)
+        if box[2] <= box[0] or box[3] <= box[1]:
+            return image  # inset larger than the frame; ignore rather than crash
+        return image.crop(box)
 
     def _save_pending_stills(self, image: Image.Image) -> None:
         with self._lock:

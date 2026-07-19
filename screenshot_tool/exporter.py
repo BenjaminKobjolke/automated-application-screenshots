@@ -45,6 +45,8 @@ def export_mp4(frames: list[Image.Image], fps: int, path: Path) -> None:
         fps=fps,
         codec="libx264",
         quality=8,
-        # Without this imageio silently pads/rescales sizes not divisible by 16
-        macro_block_size=1,
+        # x264 (4:2:0) needs even dimensions. macro_block_size=2 pads an odd
+        # side by 1px instead of rescaling to a multiple of 16 (the default),
+        # so captures/crops of any size export without failing.
+        macro_block_size=2,
     )

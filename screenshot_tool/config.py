@@ -39,6 +39,9 @@ class DemoSpec:
     app_settings: tuple[tuple[str, str], ...] = ()
     # Record once per language ("en", "de", ...); empty = one run, no lang folder
     languages: tuple[str, ...] = ()
+    # Pixels removed from each captured frame, (top, right, bottom, left).
+    # For residual edge cleanup after the DWM/work-area capture bounds.
+    crop: tuple[int, int, int, int] = (0, 0, 0, 0)
 
 
 @dataclass(frozen=True)
@@ -94,6 +97,17 @@ def _parse_demo(config_path: Path, data: dict) -> DemoSpec:
         isinstance(lang, str) and lang for lang in raw_languages
     ):
         _fail(config_path, f"demo '{data['name']}' languages must be a list of non-empty strings")
+    raw_crop = data.get("crop", {})
+    if not isinstance(raw_crop, dict):
+        _fail(
+            config_path, f"demo '{data['name']}' crop must be an object with top/right/bottom/left"
+        )
+    crop = (
+        max(0, int(raw_crop.get("top", 0))),
+        max(0, int(raw_crop.get("right", 0))),
+        max(0, int(raw_crop.get("bottom", 0))),
+        max(0, int(raw_crop.get("left", 0))),
+    )
     return DemoSpec(
         id=data["id"],
         name=data["name"],
@@ -103,6 +117,7 @@ def _parse_demo(config_path: Path, data: dict) -> DemoSpec:
         height=data.get("height"),
         app_settings=tuple((str(k), str(v)) for k, v in raw_settings.items()),
         languages=tuple(raw_languages),
+        crop=crop,
     )
 
 

@@ -109,14 +109,14 @@ class DemoCLI:
             AppLogger.info(f"Recording window '{WindowFinder.get_window_title(hwnd)}'")
             WindowFinder.bring_to_foreground(hwnd)
             WindowFinder.move_into_work_area(hwnd)
-            # A previous run's window (same app, same rect) may still be closing;
-            # the screen-region capture would grab it. Wait for it to vanish, then
-            # pin the target on top so nothing can overlap the recorded rect.
-            self._wait_other_windows_gone(hwnd)
+            # Screen-region capture grabs whatever is drawn at the window's rect, so a
+            # previous run's still-closing window (same app, same position) could bleed
+            # in. Pin the target on top — SetForegroundWindow is unreliable, HWND_TOPMOST
+            # via SetWindowPos is not — so it always sits above any leftover window.
             WindowFinder.set_topmost(hwnd)
             time.sleep(0.3)
 
-            recorder = Recorder(hwnd, demo.fps, stills_dir=out_dir)
+            recorder = Recorder(hwnd, demo.fps, stills_dir=out_dir, crop=demo.crop)
             recorder.start()
             ok = self._event_loop(server, proc, recorder)
 
@@ -164,25 +164,6 @@ class DemoCLI:
             return event.hwnd
         AppLogger.error("Timed out waiting for demo_started.")
         return None
-
-    @staticmethod
-    def _wait_other_windows_gone(hwnd: int, timeout: float = 3.0) -> None:
-        """Wait until ``hwnd`` is the only window matching ``title_substring``.
-
-        A prior demo's window (same app, same position/size) can still be visible
-        while it closes; because capture is a screen-region grab, it would bleed
-        into this recording. Block until it is gone, or warn on timeout.
-        """
-        title = config.settings.title_substring
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            others = [h for h in WindowFinder.visible_windows_by_title(title) if h != hwnd]
-            if not others:
-                return
-            time.sleep(0.1)
-        AppLogger.warning(
-            "Another window still matches title_substring; capture may include it."
-        )
 
     @staticmethod
     def _accept_connection(server: DemoServer, proc: subprocess.Popen) -> bool:
