@@ -29,13 +29,14 @@ class DropdownAutomation:
         Returns:
             Tuple of (x, y) screen coordinates for dropdown center
         """
+        pos = config.settings.dropdown_relative_pos
+        if pos is None:
+            raise RuntimeError("Config has no 'dropdown_relative_pos'; language mode requires it")
+
         rect = WindowFinder.get_window_rect(self.hwnd)
         window_left, window_top = rect[0], rect[1]
 
-        dropdown_x = window_left + config.settings.dropdown_relative_pos[0]
-        dropdown_y = window_top + config.settings.dropdown_relative_pos[1]
-
-        return (dropdown_x, dropdown_y)
+        return (window_left + pos[0], window_top + pos[1])
 
     def focus_dropdown(self) -> None:
         """Click on the dropdown to focus it."""

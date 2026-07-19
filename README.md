@@ -1,8 +1,11 @@
 # Automated Application Screenshots
 
-Automated screenshot capture tool for Windows applications with a language dropdown. Cycles through every language in the dropdown and saves one screenshot per language to `screenshots/<language-code>/screenshot.png`.
+Automated screenshot capture tool for Windows applications. Two modes:
 
-The target application is defined by a JSON config file in `config/`. Ships with a config for **KeyboardLayoutWatcher** (41 languages).
+- **Language screenshots** — cycles through an app's language dropdown and saves one screenshot per language to `screenshots/<language-code>/screenshot.png`.
+- **Demo recordings** — launches an app that implements the [automation interface](docs/AUTOMATION_INTERFACE.md), records a scripted demo of it, and exports animated **GIF/MP4** plus PNG stills.
+
+The target application is defined by a JSON config file — either in `config/` here, or kept in the app's own repo (FastCalculator keeps its demo config in `calculator/tools/media/` with a `create_demos.bat` next to it). Ships with a config for **KeyboardLayoutWatcher** (41 languages).
 
 ## Requirements
 
@@ -46,8 +49,34 @@ Runs `uv sync` to install dependencies.
 | `--start-from`, `-s` | Language code to start from (skips earlier ones) | first language |
 | `--delay`, `-d` | Seconds to wait after each language change | from config |
 | `--list`, `-l` | List all supported language codes and exit | |
+| `--demo` | Record demo `<id>` (or `all`) of the configured app and exit | |
 
 `list_supported_languages.bat` is a shortcut for `--list`. Details: [docs/COMMAND_LINE_ARGUMENTS.md](docs/COMMAND_LINE_ARGUMENTS.md).
+
+## Demo recordings
+
+For apps implementing the automation interface (CLI args + socket events, see [docs/AUTOMATION_INTERFACE.md](docs/AUTOMATION_INTERFACE.md)); Python apps get the app-side implementation ready-made from the [automated-screenshot-connector](../automated-application-screenshots-python-connector) library:
+
+```
+uv run screenshot-tool --config path/to/your-app-demos.json --demo 1
+```
+
+The tool launches the app with the demo id, an event port, and the configured window size; the app reports its native window handle over the socket (no window guessing); the tool records that window while the app plays its scripted demo, saves stills whenever the app requests one, and exports `demo.gif` / `demo.mp4` to `<output_dir>/demos/<demo_name>/`. The app config gains two sections:
+
+```json
+"launch": {
+  "command": ["uv", "run", "python", "main.py",
+              "--automation-demo", "{demo_id}", "--automation-demo-port", "{port}",
+              "--automation-demo-width", "{width}", "--automation-demo-height", "{height}"],
+  "cwd": "D:/GIT/BenjaminKobjolke/calculator"
+},
+"demos": [
+  {"id": 1, "name": "basic-math", "fps": 10, "formats": ["gif", "mp4"], "width": 640, "height": 420,
+   "app_settings": {"editor/font_point_size": 18}}
+]
+```
+
+Keep hands off mouse/keyboard while recording — the window must stay frontmost and unobstructed. A config may contain both `languages` and `demos`.
 
 ## Configuration
 

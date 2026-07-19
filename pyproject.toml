@@ -10,6 +10,8 @@ dependencies = [
     "pyautogui>=0.9.54",
     "keyboard>=0.13.5",
     "pywinauto>=0.6.8",
+    "imageio>=2.37.3",
+    "imageio-ffmpeg>=0.6.0",
 ]
 
 [project.scripts]

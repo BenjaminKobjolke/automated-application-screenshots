@@ -51,7 +51,7 @@ class WindowFinder:
         for proc in psutil.process_iter(["pid", "name"]):
             if proc.info["name"] and proc.info["name"].lower() == process_name.lower():
                 pid = proc.info["pid"]
-                hwnd = WindowFinder._get_window_by_pid(pid)
+                hwnd = WindowFinder.find_by_pid(pid)
                 if hwnd:
                     return hwnd
         return None
@@ -71,7 +71,7 @@ class WindowFinder:
         )
 
     @staticmethod
-    def _get_window_by_pid(pid: int) -> int | None:
+    def find_by_pid(pid: int) -> int | None:
         """Get main window handle for a process ID.
 
         Args:

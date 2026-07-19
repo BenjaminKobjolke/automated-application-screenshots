@@ -6,12 +6,17 @@ Captures screenshots of a target application in all its supported languages
 by automatically cycling through its language dropdown. The target app is
 defined by a JSON config file (default: config/keyboard-layout-watcher.json).
 
+Also records animated demos (GIF/MP4 + stills) of apps implementing the
+automation-demo contract (docs/AUTOMATION_INTERFACE.md).
+
 Usage:
     uv run screenshot-tool              # Capture all languages
     uv run screenshot-tool --list       # List supported languages
     uv run screenshot-tool --start-from de  # Start from German
     uv run screenshot-tool --delay 0.5  # Custom delay between captures
     uv run screenshot-tool --config config/other-app.json  # Other target app
+    uv run screenshot-tool --config config/app.json --demo 1    # Record demo 1
+    uv run screenshot-tool --config config/app.json --demo all  # Record all demos
 """
 
 import argparse
@@ -78,10 +83,24 @@ Examples:
         "--list", "-l", action="store_true", help="List all supported language codes and exit"
     )
 
+    parser.add_argument(
+        "--demo",
+        metavar="ID|all",
+        help="Record the given demo (or all demos) of the configured app and exit",
+    )
+
     args = parser.parse_args()
+
+    if args.demo and (args.list or args.start_from):
+        parser.error("--demo cannot be combined with --list or --start-from")
 
     if args.config:
         config.load_config(args.config)
+
+    if args.demo:
+        from .demo_cli import DemoCLI
+
+        return DemoCLI().run(args.demo)
 
     # Create CLI instance
     cli = ScreenshotCLI(output_dir=args.output, delay=args.delay)

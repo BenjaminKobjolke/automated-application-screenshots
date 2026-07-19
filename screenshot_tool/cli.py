@@ -24,7 +24,9 @@ class ScreenshotCLI:
             delay: Delay in seconds after each language change (defaults to config value)
         """
         self.output_dir = Path(output_dir or config.settings.output_dir)
-        self.delay = config.settings.delay_after_change if delay is None else delay
+        self.delay: float = (
+            delay if delay is not None else (config.settings.delay_after_change or 0.0)
+        )
         self.hwnd: int | None = None
         self.automation: DropdownAutomation | None = None
         self.dropdown_reader: DropdownReader | None = None
@@ -91,7 +93,8 @@ class ScreenshotCLI:
             image = WindowCapture.capture_window(self.hwnd)
 
             # Save in language subfolder (e.g., screenshots/de/main.png)
-            output_path = self.output_dir / lang_code / config.settings.screenshot_filename
+            filename = config.settings.screenshot_filename or "screenshot.png"
+            output_path = self.output_dir / lang_code / filename
             WindowCapture.save_screenshot(image, output_path)
 
             AppLogger.info(f"[{index}/{total}] {lang_code} - {display_name}... saved")
@@ -112,6 +115,12 @@ class ScreenshotCLI:
         Returns:
             Exit code (0 for success, 1 for errors)
         """
+        if config.settings.language_names is None:
+            AppLogger.error("Config has no 'languages' section - nothing to capture.")
+            AppLogger.error("Use --demo to run the demos defined in this config.")
+            return 1
+        language_names = config.settings.language_names
+
         if not self.find_window():
             return 1
         assert self.hwnd is not None
@@ -146,7 +155,7 @@ class ScreenshotCLI:
         time.sleep(0.2)
 
         if not start_from:
-            first_name = config.settings.language_names.get(languages[0], languages[0])
+            first_name = language_names.get(languages[0], languages[0])
             AppLogger.info(f"Going to first language ({first_name})...")
             self.automation.go_to_first()
             time.sleep(0.2)
@@ -171,8 +180,8 @@ class ScreenshotCLI:
 
     def list_languages(self) -> None:
         """Log all supported language codes."""
+        names = config.settings.language_names or {}
         AppLogger.info("Supported language codes:\n")
         for code in config.settings.language_codes:
-            name = config.settings.language_names.get(code, "")
-            AppLogger.info(f"  {code:4} - {name}")
+            AppLogger.info(f"  {code:4} - {names.get(code, '')}")
         AppLogger.info(f"\nTotal: {len(config.settings.language_codes)} languages")
