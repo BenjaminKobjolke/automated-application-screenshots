@@ -14,7 +14,7 @@ Namespaced so they never clash with your app's own arguments:
 --automation-demo-port <port>     connect to the tool's event socket on 127.0.0.1
 --automation-demo-width <px>      resize the window to this width  (optional)
 --automation-demo-height <px>     resize the window to this height (optional)
---automation-demo-set <k>=<v>     app-specific demo setting, repeatable (optional)
+--automation-demo-settings <path> JSON file with app-specific settings (optional)
 ```
 
 Rules:
@@ -22,11 +22,13 @@ Rules:
 - `--automation-demo` alone (no port) must work too: the demo plays visually
   without reporting events. This is how you develop demos manually.
 - The other arguments are only valid together with `--automation-demo`.
-- `--automation-demo-set` keys are **your app's own dialect** — the tool
-  forwards them opaquely from the config's `app_settings`. FastCalculator
+- `--automation-demo-settings` points to a temp file the tool writes from the
+  config's `app_settings`: one JSON object, e.g.
+  `{"editor/font_point_size": "18"}`. One file instead of one argument per
+  setting keeps the command line short at any settings count; the tool deletes
+  it after the run. Keys are **your app's own dialect** — FastCalculator
   interprets them as QSettings keys seeded into the wiped demo settings
-  namespace before the window is built (e.g. `editor/font_point_size=18`
-  gives readable text in recordings). Ignore or warn on keys you don't know.
+  namespace before the window is built. Ignore or warn on keys you don't know.
 - Note: the recording contains **physical** pixels. On a 150 % scaled display a
   640×420 window records as 960×630.
 
@@ -155,9 +157,9 @@ language-screenshot `languages` section):
 - `{demo_id}`, `{port}`, `{width}`, `{height}` are substituted per argument.
 - `fps` defaults to 10 (the realistic capture ceiling), `formats` to `["gif"]`.
 - `width`/`height` are required only if the command uses their placeholders.
-- `app_settings` (optional object) is appended as one
-  `--automation-demo-set key=value` per entry — keys mean whatever your app
-  decides (section 1).
+- `app_settings` (optional object) is written to a temp JSON file and passed
+  as a single `--automation-demo-settings <path>` — keys mean whatever your
+  app decides (section 1).
 
 Run:
 
@@ -174,7 +176,7 @@ and one `<name>.png` per screenshot event.
 - [ ] `--automation-demo <id>` plays the demo and exits on its own
 - [ ] Works without `--automation-demo-port` (manual run, no crash)
 - [ ] Window resizes to `--automation-demo-width/height`
-- [ ] `--automation-demo-set key=value` settings applied before the window shows
+- [ ] `--automation-demo-settings` JSON applied before the window shows
 - [ ] Demo starts from clean, deterministic state; user settings untouched
 - [ ] Events sent: `demo_started` (with `hwnd`), `screenshot` per still, `demo_ended`
 - [ ] App quits ~1 s after `demo_ended`

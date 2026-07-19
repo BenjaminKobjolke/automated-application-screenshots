@@ -119,14 +119,32 @@ def _parse_demo_section(
     return launch, demos
 
 
-def build_launch_command(launch: LaunchSettings, demo: DemoSpec, port: int) -> list[str]:
+def build_launch_command(
+    launch: LaunchSettings, demo: DemoSpec, port: int, settings_file: Path | None
+) -> list[str]:
     """Substitute {demo_id}/{port}/{width}/{height} placeholders into the launch
-    command and append one --automation-demo-set pair per app setting."""
+    command and append --automation-demo-settings when a settings file is given."""
     values = {"demo_id": demo.id, "port": port, "width": demo.width, "height": demo.height}
     command = [arg.format(**values) for arg in launch.command]
-    for key, value in demo.app_settings:
-        command += ["--automation-demo-set", f"{key}={value}"]
+    if settings_file is not None:
+        command += ["--automation-demo-settings", str(settings_file)]
     return command
+
+
+def write_app_settings_file(demo: DemoSpec, directory: Path) -> Path | None:
+    """Write the demo's app_settings as a JSON object file.
+
+    One file instead of one CLI argument per setting keeps the launch command
+    short no matter how many settings a demo carries.
+
+    Returns:
+        The file path, or None when the demo has no app settings.
+    """
+    if not demo.app_settings:
+        return None
+    path = directory / f"demo-{demo.id}-settings.json"
+    path.write_text(json.dumps(dict(demo.app_settings)), encoding="utf-8")
+    return path
 
 
 def load_config(path: str | Path | None = None) -> Settings:

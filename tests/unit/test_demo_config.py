@@ -156,22 +156,22 @@ def test_app_settings_must_be_object(tmp_path):
         config.load_config(write_config(tmp_path, data))
 
 
-def test_build_launch_command_appends_app_settings(tmp_path):
+def test_build_launch_command_appends_settings_file_arg(tmp_path):
     settings = config.load_config(write_config(tmp_path, WITH_APP_SETTINGS))
     assert settings.launch is not None
-    cmd = config.build_launch_command(settings.launch, settings.demos[0], port=1234)
-    assert cmd[-4:] == [
-        "--automation-demo-set",
-        "editor/font_point_size=18",
-        "--automation-demo-set",
-        "window/theme=dark",
-    ]
+    settings_file = tmp_path / "settings.json"
+    cmd = config.build_launch_command(
+        settings.launch, settings.demos[0], port=1234, settings_file=settings_file
+    )
+    assert cmd[-2:] == ["--automation-demo-settings", str(settings_file)]
 
 
 def test_build_launch_command_substitutes_placeholders(tmp_path):
     settings = config.load_config(write_config(tmp_path, DEMO_ONLY))
     assert settings.launch is not None
-    cmd = config.build_launch_command(settings.launch, settings.demos[0], port=54321)
+    cmd = config.build_launch_command(
+        settings.launch, settings.demos[0], port=54321, settings_file=None
+    )
     assert cmd == [
         "uv",
         "run",
@@ -182,3 +182,16 @@ def test_build_launch_command_substitutes_placeholders(tmp_path):
         "--automation-demo-port",
         "54321",
     ]
+
+
+def test_write_app_settings_file_writes_json_object(tmp_path):
+    settings = config.load_config(write_config(tmp_path, WITH_APP_SETTINGS))
+    path = config.write_app_settings_file(settings.demos[0], tmp_path)
+    assert path is not None
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data == {"editor/font_point_size": "18", "window/theme": "dark"}
+
+
+def test_write_app_settings_file_none_without_settings(tmp_path):
+    settings = config.load_config(write_config(tmp_path, DEMO_ONLY))
+    assert config.write_app_settings_file(settings.demos[0], tmp_path) is None

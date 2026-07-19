@@ -6,6 +6,7 @@ server port -> find its window -> record frames from ``demo_started`` to
 """
 
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 
@@ -13,7 +14,7 @@ import psutil
 
 from . import config
 from .app_logger import AppLogger
-from .config import DemoSpec, build_launch_command
+from .config import DemoSpec, build_launch_command, write_app_settings_file
 from .demo_server import DemoServer
 from .exporter import export_gif, export_mp4
 from .recorder import Recorder
@@ -72,7 +73,8 @@ class DemoCLI:
         AppLogger.info(f"\n--- Demo {demo.id} '{demo.name}' ---")
 
         server = DemoServer()
-        cmd = build_launch_command(launch, demo, server.port)
+        settings_file = write_app_settings_file(demo, Path(tempfile.gettempdir()))
+        cmd = build_launch_command(launch, demo, server.port, settings_file)
         AppLogger.info(f"Launching: {' '.join(cmd)}")
         proc = subprocess.Popen(cmd, cwd=launch.cwd)
         recorder: Recorder | None = None
@@ -103,6 +105,8 @@ class DemoCLI:
         finally:
             server.close()
             self._shutdown(proc)
+            if settings_file is not None:
+                settings_file.unlink(missing_ok=True)
 
     @staticmethod
     def _wait_for_started_hwnd(server: DemoServer, proc: subprocess.Popen) -> int | None:

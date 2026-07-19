@@ -97,7 +97,7 @@ One entry per recordable demo:
 - `fps` (integer, default 10) — capture frame rate; ~10 is the realistic ceiling.
 - `formats` (array of `"gif"`/`"mp4"`, default `["gif"]`) — exports to produce.
 - `width` / `height` (integers, optional) — window size the app must adopt. Recordings contain physical pixels: on a 150 % scaled display, 640×420 records as 960×630.
-- `app_settings` (object, optional) — opaque app-specific settings, forwarded as one `--automation-demo-set key=value` per entry. The key dialect is the app's own (FastCalculator: QSettings keys).
+- `app_settings` (object, optional) — opaque app-specific settings. The tool writes them to a temp JSON file and passes it as a single `--automation-demo-settings <path>` (deleted after the run). The key dialect is the app's own (FastCalculator: QSettings keys).
 
 ### `languages` (object, language mode)
 
