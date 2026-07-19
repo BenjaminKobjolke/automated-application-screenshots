@@ -5,7 +5,7 @@ Automated screenshot capture tool for Windows applications. Two modes:
 - **Language screenshots** — cycles through an app's language dropdown and saves one screenshot per language to `screenshots/<language-code>/screenshot.png`.
 - **Demo recordings** — launches an app that implements the [automation interface](docs/AUTOMATION_INTERFACE.md), records a scripted demo of it, and exports animated **GIF/MP4** plus PNG stills.
 
-The target application is defined by a JSON config file — either in `config/` here, or kept in the app's own repo (FastCalculator keeps its demo config in `calculator/tools/media/` with a `create_demos.bat` next to it). Ships with a config for **KeyboardLayoutWatcher** (41 languages).
+The target application is defined by a JSON config file — either in `config/` here, or kept in the app's own repo (FastCalculator keeps its demo config in `calculator/tools/create_media/` with a `create_demos.bat` next to it). Ships with a config for **KeyboardLayoutWatcher** (41 languages).
 
 ## Requirements
 
@@ -72,11 +72,16 @@ The tool launches the app with the demo id, an event port, and the configured wi
 },
 "demos": [
   {"id": 1, "name": "basic-math", "fps": 10, "formats": ["gif", "mp4"], "width": 640, "height": 420,
-   "app_settings": {"editor/font_point_size": 18}}
+   "app_settings": {"editor/font_point_size": 18},
+   "languages": ["en", "de"]}
 ]
 ```
 
-Keep hands off mouse/keyboard while recording — the window must stay frontmost and unobstructed. A config may contain both `languages` and `demos`.
+### Multi-language demos
+
+A demo listing `languages` records once per language into `<output_dir>/demos/<demo_name>/<lang>/`; each run passes `--automation-demo-language <lang>` so the app can switch its UI language. With a top-level `"texts_dir": "texts"`, the matching `texts/<lang>.json` (placeholder → localized string, e.g. `{"price": "preis"}`) is also passed as `--automation-demo-texts`, letting demo scripts type localized text via `{placeholder}`s. Details: [docs/CONFIG.md](docs/CONFIG.md), [docs/AUTOMATION_INTERFACE.md](docs/AUTOMATION_INTERFACE.md).
+
+Keep hands off mouse/keyboard while recording — the window must stay frontmost and unobstructed. A config may contain both `languages` (dropdown mode, top-level) and `demos`.
 
 ## Configuration
 

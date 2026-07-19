@@ -9,7 +9,7 @@ Run via `uv run screenshot-tool [options]` (or `start.bat`).
 | `--start-from`, `-s` | `CODE` | Language code to start from; earlier languages are skipped. Useful to resume an aborted run | first language |
 | `--delay`, `-d` | `SECONDS` | Delay after each language change before capturing (float) | `delay_after_change` from config |
 | `--list`, `-l` | | List all supported language codes from the config and exit | |
-| `--demo` | `ID\|all` | Record the given demo (or all demos) defined in the config and exit — launches the app itself, exports GIF/MP4 + stills (see [AUTOMATION_INTERFACE.md](AUTOMATION_INTERFACE.md)). Not combinable with `--list`/`--start-from` | |
+| `--demo` | `ID\|all` | Record the given demo (or all demos) defined in the config and exit — launches the app itself, exports GIF/MP4 + stills (see [AUTOMATION_INTERFACE.md](AUTOMATION_INTERFACE.md)). A demo with `languages` records once per language. Not combinable with `--list`/`--start-from` | |
 | `--help`, `-h` | | Show usage help and exit | |
 
 ## Examples

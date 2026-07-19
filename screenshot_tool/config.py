@@ -34,8 +34,11 @@ class DemoSpec:
     formats: tuple[str, ...] = ("gif",)
     width: int | None = None
     height: int | None = None
-    # Opaque app-specific settings, forwarded as --automation-demo-set key=value
+    # Opaque app-specific settings, written to a JSON file the app receives
+    # via --automation-demo-settings
     app_settings: tuple[tuple[str, str], ...] = ()
+    # Record once per language ("en", "de", ...); empty = one run, no lang folder
+    languages: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -51,6 +54,8 @@ class Settings:
     language_names: dict[str, str] | None = None
     launch: LaunchSettings | None = None
     demos: tuple[DemoSpec, ...] = ()
+    # Folder with per-language demo text files (<texts_dir>/<lang>.json)
+    texts_dir: str | None = None
     language_codes: list[str] = field(init=False)
     name_to_code: dict[str, str] = field(init=False)
 
@@ -84,6 +89,11 @@ def _parse_demo(config_path: Path, data: dict) -> DemoSpec:
     raw_settings = data.get("app_settings", {})
     if not isinstance(raw_settings, dict):
         _fail(config_path, f"demo '{data['name']}' app_settings must be an object")
+    raw_languages = data.get("languages", [])
+    if not isinstance(raw_languages, list) or not all(
+        isinstance(lang, str) and lang for lang in raw_languages
+    ):
+        _fail(config_path, f"demo '{data['name']}' languages must be a list of non-empty strings")
     return DemoSpec(
         id=data["id"],
         name=data["name"],
@@ -92,6 +102,7 @@ def _parse_demo(config_path: Path, data: dict) -> DemoSpec:
         width=data.get("width"),
         height=data.get("height"),
         app_settings=tuple((str(k), str(v)) for k, v in raw_settings.items()),
+        languages=tuple(raw_languages),
     )
 
 
@@ -120,14 +131,24 @@ def _parse_demo_section(
 
 
 def build_launch_command(
-    launch: LaunchSettings, demo: DemoSpec, port: int, settings_file: Path | None
+    launch: LaunchSettings,
+    demo: DemoSpec,
+    port: int,
+    settings_file: Path | None,
+    language: str | None = None,
+    texts_file: Path | None = None,
 ) -> list[str]:
     """Substitute {demo_id}/{port}/{width}/{height} placeholders into the launch
-    command and append --automation-demo-settings when a settings file is given."""
+    command and append --automation-demo-settings / --automation-demo-language /
+    --automation-demo-texts when given."""
     values = {"demo_id": demo.id, "port": port, "width": demo.width, "height": demo.height}
     command = [arg.format(**values) for arg in launch.command]
     if settings_file is not None:
         command += ["--automation-demo-settings", str(settings_file)]
+    if language is not None:
+        command += ["--automation-demo-language", language]
+    if texts_file is not None:
+        command += ["--automation-demo-texts", str(texts_file)]
     return command
 
 
@@ -176,6 +197,10 @@ def load_config(path: str | Path | None = None) -> Settings:
 
     launch, demos = _parse_demo_section(config_path, data)
 
+    texts_dir = data.get("texts_dir")
+    if texts_dir is not None and not isinstance(texts_dir, str):
+        raise SystemExit(f"ERROR: Config {config_path}: texts_dir must be a string")
+
     has_languages = "languages" in data
     pos = data.get("dropdown_relative_pos")
     settings = Settings(
@@ -188,6 +213,7 @@ def load_config(path: str | Path | None = None) -> Settings:
         language_names=data.get("languages"),
         launch=launch,
         demos=demos,
+        texts_dir=texts_dir,
     )
     return settings
 

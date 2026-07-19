@@ -28,6 +28,11 @@ TAIL_S = 0.5
 EXIT_GRACE_S = 10.0
 
 
+def _run_label(demo: DemoSpec, language: str | None) -> str:
+    """Display name of one run: 'basic-math [de]', or just the name."""
+    return f"{demo.name} [{language}]" if language else demo.name
+
+
 class DemoCLI:
     """Runs the demos of the loaded config and reports a summary."""
 
@@ -59,22 +64,36 @@ class DemoCLI:
                 AppLogger.error(f"No demo with id {demo_id} (available: {available})")
                 return 1
 
-        failed = [demo.name for demo in demos if not self._run_demo(demo)]
+        # A demo without languages is one run; with languages, one run per language
+        runs = [(demo, lang) for demo in demos for lang in (demo.languages or (None,))]
+        failed = [_run_label(demo, lang) for demo, lang in runs if not self._run_demo(demo, lang)]
         AppLogger.info(f"\n{'=' * 50}")
-        AppLogger.info(f"Demos complete: {len(demos) - len(failed)}/{len(demos)} succeeded")
+        AppLogger.info(f"Demos complete: {len(runs) - len(failed)}/{len(runs)} succeeded")
         for name in failed:
             AppLogger.info(f"  FAILED: {name}")
         return 0 if not failed else 1
 
-    def _run_demo(self, demo: DemoSpec) -> bool:
+    def _run_demo(self, demo: DemoSpec, language: str | None = None) -> bool:
         launch = config.settings.launch
         assert launch is not None  # config validation guarantees this
         out_dir = Path(config.settings.output_dir) / "demos" / demo.name
-        AppLogger.info(f"\n--- Demo {demo.id} '{demo.name}' ---")
+        if language:
+            out_dir = out_dir / language
+        AppLogger.info(f"\n--- Demo {demo.id} '{_run_label(demo, language)}' ---")
+
+        texts_file: Path | None = None
+        if language and config.settings.texts_dir:
+            # Absolute: the app may run with a different cwd (launch.cwd)
+            texts_file = (Path(config.settings.texts_dir) / f"{language}.json").resolve()
+            if not texts_file.is_file():
+                AppLogger.error(
+                    f"Texts file missing for '{_run_label(demo, language)}': {texts_file}"
+                )
+                return False
 
         server = DemoServer()
         settings_file = write_app_settings_file(demo, Path(tempfile.gettempdir()))
-        cmd = build_launch_command(launch, demo, server.port, settings_file)
+        cmd = build_launch_command(launch, demo, server.port, settings_file, language, texts_file)
         AppLogger.info(f"Launching: {' '.join(cmd)}")
         proc = subprocess.Popen(cmd, cwd=launch.cwd)
         recorder: Recorder | None = None

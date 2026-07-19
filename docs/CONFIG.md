@@ -1,6 +1,6 @@
 # Config File
 
-Each target application is described by one JSON file. It can live in this repo's `config/` (default: `config/keyboard-layout-watcher.json`) or in the target app's own repo next to a runner script (FastCalculator keeps `calculator/tools/media/fastcalculator.json` beside `create_demos.bat`). Select it with `--config` (see [COMMAND_LINE_ARGUMENTS.md](COMMAND_LINE_ARGUMENTS.md)).
+Each target application is described by one JSON file. It can live in this repo's `config/` (default: `config/keyboard-layout-watcher.json`) or in the target app's own repo next to a runner script (FastCalculator keeps `calculator/tools/create_media/fastcalculator.json` beside `create_demos.bat`). Select it with `--config` (see [COMMAND_LINE_ARGUMENTS.md](COMMAND_LINE_ARGUMENTS.md)).
 
 A config can define either or both modes:
 
@@ -33,6 +33,7 @@ Always required: `process_name`, `title_substring`, `output_dir`. A missing file
   "process_name": "python.exe",
   "title_substring": "FastCalculator",
   "output_dir": "output",
+  "texts_dir": "texts",
   "launch": {
     "command": ["uv", "run", "python", "main.py",
                 "--automation-demo", "{demo_id}",
@@ -49,7 +50,8 @@ Always required: `process_name`, `title_substring`, `output_dir`. A missing file
       "formats": ["gif", "mp4"],
       "width": 640,
       "height": 420,
-      "app_settings": { "editor/font_point_size": 18 }
+      "app_settings": { "editor/font_point_size": 18 },
+      "languages": ["en", "de"]
     }
   ]
 }
@@ -71,7 +73,7 @@ Fallback window search for language mode: if no window is found by `process_name
 
 ### `output_dir` (string)
 
-Output root. Language mode: `<output_dir>/<language-code>/<screenshot_filename>` (overridable with `--output`). Demo mode: `<output_dir>/demos/<demo-name>/` receives `demo.gif`, `demo.mp4`, and the stills. Relative paths resolve against the current working directory.
+Output root. Language mode: `<output_dir>/<language-code>/<screenshot_filename>` (overridable with `--output`). Demo mode: `<output_dir>/demos/<demo-name>/` receives `demo.gif`, `demo.mp4`, and the stills; a demo with `languages` writes to `<output_dir>/demos/<demo-name>/<lang>/` instead, once per language. Relative paths resolve against the current working directory.
 
 ### `screenshot_filename` (string, language mode)
 
@@ -88,6 +90,16 @@ How to start the target application.
 - `command` (array of strings) — the argv to run. Placeholders `{demo_id}`, `{port}`, `{width}`, `{height}` are substituted per argument. `{width}`/`{height}` require the demo to define `width`/`height`.
 - `cwd` (string, optional) — working directory for the command; relative paths resolve against the tool's current working directory.
 
+### `texts_dir` (string, demo mode, optional)
+
+Folder with one demo-text JSON file per language, named `<lang>.json` (like an app's `locales/` folder), resolved against the current working directory. On a language run the tool passes `<texts_dir>/<lang>.json` to the app as `--automation-demo-texts <path>`; the app fills `{placeholder}`s in its demo scripts from it (connector: `localize_script`, requires connector >= 0.4.0). A missing file fails that run with a clear error. Ignored for runs without a language.
+
+Example `texts/de.json`:
+
+```json
+{ "price": "preis" }
+```
+
 ### `demos` (array, demo mode)
 
 One entry per recordable demo:
@@ -98,6 +110,7 @@ One entry per recordable demo:
 - `formats` (array of `"gif"`/`"mp4"`, default `["gif"]`) — exports to produce.
 - `width` / `height` (integers, optional) — window size the app must adopt. Recordings contain physical pixels: on a 150 % scaled display, 640×420 records as 960×630.
 - `app_settings` (object, optional) — opaque app-specific settings. The tool writes them to a temp JSON file and passes it as a single `--automation-demo-settings <path>` (deleted after the run). The key dialect is the app's own (FastCalculator: QSettings keys).
+- `languages` (array of strings, optional) — record the demo once per language code. Each run passes `--automation-demo-language <lang>` to the app (which must set its UI language accordingly; requires connector >= 0.3.0) and writes to the `<lang>/` subfolder. Omitted or empty: one run, no language subfolder. `--demo <id>` always runs all of a demo's languages. Note: this per-demo key is unrelated to the top-level `languages` object of language mode.
 
 ### `languages` (object, language mode)
 

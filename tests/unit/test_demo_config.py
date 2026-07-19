@@ -136,6 +136,65 @@ def test_language_mode_missing_language_keys_exits(tmp_path):
         config.load_config(write_config(tmp_path, data))
 
 
+def test_demo_languages_parsed(tmp_path):
+    data = json.loads(json.dumps(DEMO_ONLY))
+    data["demos"][0]["languages"] = ["en", "de"]
+    settings = config.load_config(write_config(tmp_path, data))
+    assert settings.demos[0].languages == ("en", "de")
+
+
+def test_demo_languages_default_empty(tmp_path):
+    settings = config.load_config(write_config(tmp_path, DEMO_ONLY))
+    assert settings.demos[0].languages == ()
+
+
+@pytest.mark.parametrize("bad", ["en", [1], [""], [None]])
+def test_demo_languages_must_be_string_list(tmp_path, bad):
+    data = json.loads(json.dumps(DEMO_ONLY))
+    data["demos"][0]["languages"] = bad
+    with pytest.raises(SystemExit, match="languages"):
+        config.load_config(write_config(tmp_path, data))
+
+
+def test_build_launch_command_appends_language(tmp_path):
+    settings = config.load_config(write_config(tmp_path, DEMO_ONLY))
+    assert settings.launch is not None
+    cmd = config.build_launch_command(
+        settings.launch, settings.demos[0], port=1234, settings_file=None, language="de"
+    )
+    assert cmd[-2:] == ["--automation-demo-language", "de"]
+
+
+def test_texts_dir_parsed(tmp_path):
+    settings = config.load_config(write_config(tmp_path, {**DEMO_ONLY, "texts_dir": "texts"}))
+    assert settings.texts_dir == "texts"
+
+
+def test_texts_dir_default_none(tmp_path):
+    settings = config.load_config(write_config(tmp_path, DEMO_ONLY))
+    assert settings.texts_dir is None
+
+
+def test_texts_dir_must_be_string(tmp_path):
+    with pytest.raises(SystemExit, match="texts_dir"):
+        config.load_config(write_config(tmp_path, {**DEMO_ONLY, "texts_dir": 5}))
+
+
+def test_build_launch_command_appends_texts_file(tmp_path):
+    settings = config.load_config(write_config(tmp_path, DEMO_ONLY))
+    assert settings.launch is not None
+    texts_file = tmp_path / "de.json"
+    cmd = config.build_launch_command(
+        settings.launch,
+        settings.demos[0],
+        port=1234,
+        settings_file=None,
+        language="de",
+        texts_file=texts_file,
+    )
+    assert cmd[-2:] == ["--automation-demo-texts", str(texts_file)]
+
+
 def test_app_settings_parsed_and_coerced_to_str(tmp_path):
     settings = config.load_config(write_config(tmp_path, WITH_APP_SETTINGS))
     assert settings.demos[0].app_settings == (

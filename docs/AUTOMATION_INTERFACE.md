@@ -15,6 +15,8 @@ Namespaced so they never clash with your app's own arguments:
 --automation-demo-width <px>      resize the window to this width  (optional)
 --automation-demo-height <px>     resize the window to this height (optional)
 --automation-demo-settings <path> JSON file with app-specific settings (optional)
+--automation-demo-language <lang> UI language for this run, e.g. "de" (optional)
+--automation-demo-texts <path>    JSON file with localized demo texts (optional)
 ```
 
 Rules:
@@ -29,6 +31,16 @@ Rules:
   it after the run. Keys are **your app's own dialect** — FastCalculator
   interprets them as QSettings keys seeded into the wiped demo settings
   namespace before the window is built. Ignore or warn on keys you don't know.
+- `--automation-demo-language` is sent when the config demo lists `languages`
+  (one app run per language). Set your UI language from it before building the
+  window; without it, use your normal language source. Apps parsing demo args
+  with the connector library need connector >= 0.3.0, or the unknown argument
+  ends up in the leftover args.
+- `--automation-demo-texts` is sent on language runs when the config sets
+  `texts_dir`: one JSON object mapping placeholder names to localized strings,
+  e.g. `{"price": "preis"}`. Fill `{placeholder}`s in your demo script's typed
+  text from it (connector >= 0.4.0 ships `localize_script`). Screenshot names
+  stay unlocalized — they are filenames.
 - Note: the recording contains **physical** pixels. On a 150 % scaled display a
   640×420 window records as 960×630.
 
@@ -87,8 +99,8 @@ It ships the step model (`TypeText`, `Pause`, `Command`, `Screenshot`,
 `DemoScript`), the socket `DemoClient`, `parse_demo_args` (consumes only the
 `--automation-demo*` options, returns your app's own args untouched), and for
 Qt apps `automated_screenshot_connector.qt` with the typing `DemoPlayer` and
-`prepare_demo_settings` (wiped temp QSettings namespace + `--automation-demo-set`
-seeding). Core is stdlib-only; the qt module needs your app's PySide6. Your app
+`prepare_demo_settings` (wiped temp QSettings namespace seeded from the
+`--automation-demo-settings` JSON). Core is stdlib-only; the qt module needs your app's PySide6. Your app
 keeps only its demo content (`DEMOS: dict[int, DemoScript]`). See the library
 README for the wiring snippet; FastCalculator's `main.py` is the working example.
 
@@ -149,7 +161,8 @@ language-screenshot `languages` section):
   "demos": [
     {"id": 1, "name": "basic-math", "fps": 10, "formats": ["gif", "mp4"],
      "width": 640, "height": 420,
-     "app_settings": {"editor/font_point_size": 18}}
+     "app_settings": {"editor/font_point_size": 18},
+     "languages": ["en", "de"]}
   ]
 }
 ```
@@ -168,8 +181,14 @@ uv run screenshot-tool --config config/yourapp.json --demo 1
 uv run screenshot-tool --config config/yourapp.json --demo all
 ```
 
+- `languages` (optional array) records the demo once per language code, passing
+  `--automation-demo-language <lang>` to each run.
+- `texts_dir` (optional string, top-level) — folder with `<lang>.json` demo-text
+  files; each language run also gets `--automation-demo-texts <path>`.
+
 Output lands in `<output_dir>/demos/<demo_name>/`: `demo.gif`, `demo.mp4`,
-and one `<name>.png` per screenshot event.
+and one `<name>.png` per screenshot event. With `languages`, each run writes
+to `<output_dir>/demos/<demo_name>/<lang>/` instead.
 
 ## 7. Compatibility checklist
 
@@ -177,6 +196,7 @@ and one `<name>.png` per screenshot event.
 - [ ] Works without `--automation-demo-port` (manual run, no crash)
 - [ ] Window resizes to `--automation-demo-width/height`
 - [ ] `--automation-demo-settings` JSON applied before the window shows
+- [ ] `--automation-demo-texts` placeholders filled into the demo script
 - [ ] Demo starts from clean, deterministic state; user settings untouched
 - [ ] Events sent: `demo_started` (with `hwnd`), `screenshot` per still, `demo_ended`
 - [ ] App quits ~1 s after `demo_ended`
