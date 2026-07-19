@@ -61,7 +61,7 @@ For apps implementing the automation interface (CLI args + socket events, see [d
 uv run screenshot-tool --config path/to/your-app-demos.json --demo 1
 ```
 
-The tool launches the app with the demo id, an event port, and the configured window size; the app reports its native window handle over the socket (no window guessing); the tool records that window while the app plays its scripted demo, saves stills whenever the app requests one, and exports `demo.gif` / `demo.mp4` to `<output_dir>/demos/<demo_name>/`. The app config gains two sections:
+The tool launches the app with the demo id, an event port, and the configured window size; the app reports its native window handle over the socket (no window guessing); the tool moves the window into the monitor's work area (so the taskbar never shows up in the capture) and records it while the app plays its scripted demo, saves stills whenever the app requests one, and exports `demo.gif` / `demo.mp4` to `<output_dir>/demos/<demo_name>/`. The app config gains two sections:
 
 ```json
 "launch": {

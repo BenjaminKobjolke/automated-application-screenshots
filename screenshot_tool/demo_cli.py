@@ -108,6 +108,7 @@ class DemoCLI:
                 return False
             AppLogger.info(f"Recording window '{WindowFinder.get_window_title(hwnd)}'")
             WindowFinder.bring_to_foreground(hwnd)
+            WindowFinder.move_into_work_area(hwnd)
             time.sleep(0.3)
 
             recorder = Recorder(hwnd, demo.fps, stills_dir=out_dir)

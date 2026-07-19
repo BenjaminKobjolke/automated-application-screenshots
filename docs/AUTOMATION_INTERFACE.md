@@ -77,6 +77,10 @@ One JSON object per newline-terminated UTF-8 line, client (app) → server
   process guessing. Getting it: Qt `int(self.winId())` (after `show()`),
   tkinter `root.winfo_id()`, Win32 apps have it directly. Missing/invalid
   `hwnd` aborts the recording.
+- The app does not need to worry about screen placement: after `demo_started`
+  the tool moves the window into the monitor's work area, so it cannot end up
+  under the taskbar in the recording. Position your window however is
+  convenient; only the size must match the requested width/height.
 - `screenshot.name` becomes the still's filename (`<name>.png`) — keep it
   filesystem-friendly and unique within the demo.
 - Recording runs from `demo_started` to `demo_ended` (plus a short tail).

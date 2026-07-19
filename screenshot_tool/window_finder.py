@@ -4,13 +4,53 @@ import ctypes
 from ctypes import wintypes
 import psutil
 
+from .app_logger import AppLogger
+
 # Windows API constants
 SW_RESTORE = 9
 SW_SHOW = 5
+MONITOR_DEFAULTTONEAREST = 2
+SWP_NOSIZE = 0x0001
+SWP_NOZORDER = 0x0004
+SWP_NOACTIVATE = 0x0010
 
 # Load Windows DLLs
 user32 = ctypes.windll.user32
 kernel32 = ctypes.windll.kernel32
+
+
+class _MONITORINFO(ctypes.Structure):
+    _fields_ = [
+        ("cbSize", wintypes.DWORD),
+        ("rcMonitor", wintypes.RECT),
+        ("rcWork", wintypes.RECT),
+        ("dwFlags", wintypes.DWORD),
+    ]
+
+
+def clamp_to_work_area(
+    window_rect: tuple[int, int, int, int], work_rect: tuple[int, int, int, int]
+) -> tuple[int, int]:
+    """Top-left position that keeps the window inside the monitor work area.
+
+    Shifts the window the minimal distance so it does not extend under the
+    taskbar (or off any work-area edge). A window larger than the work area
+    is pinned to the work area's top-left.
+
+    Args:
+        window_rect: Window (left, top, right, bottom)
+        work_rect: Monitor work area (left, top, right, bottom)
+
+    Returns:
+        Clamped (x, y); equals the current position when already inside.
+    """
+    win_left, win_top, win_right, win_bottom = window_rect
+    work_left, work_top, work_right, work_bottom = work_rect
+    width = win_right - win_left
+    height = win_bottom - win_top
+    x = min(win_left, work_right - width)
+    y = min(win_top, work_bottom - height)
+    return (max(x, work_left), max(y, work_top))
 
 
 class WindowFinder:
@@ -139,6 +179,34 @@ class WindowFinder:
         # Bring to foreground
         user32.SetForegroundWindow(hwnd)
         return True
+
+    @staticmethod
+    def move_into_work_area(hwnd: int) -> None:
+        """Move the window so it stays inside its monitor's work area.
+
+        Prevents the always-on-top taskbar from overlapping the window
+        (and thus appearing in screen captures of its rect).
+
+        Args:
+            hwnd: Window handle
+        """
+        monitor = user32.MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST)
+        info = _MONITORINFO()
+        info.cbSize = ctypes.sizeof(_MONITORINFO)
+        if not user32.GetMonitorInfoW(monitor, ctypes.byref(info)):
+            AppLogger.warning(f"GetMonitorInfo failed for hwnd {hwnd}; window not moved.")
+            return
+        work = (info.rcWork.left, info.rcWork.top, info.rcWork.right, info.rcWork.bottom)
+        rect = WindowFinder.get_window_rect(hwnd)
+        if rect[2] - rect[0] > work[2] - work[0] or rect[3] - rect[1] > work[3] - work[1]:
+            AppLogger.warning(
+                f"Window {rect} is larger than the monitor work area {work}; "
+                "the taskbar may still overlap the capture."
+            )
+        x, y = clamp_to_work_area(rect, work)
+        if (x, y) != (rect[0], rect[1]):
+            AppLogger.info(f"Moving window from ({rect[0]}, {rect[1]}) to ({x}, {y})")
+            user32.SetWindowPos(hwnd, 0, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE)
 
     @staticmethod
     def is_window_valid(hwnd: int) -> bool:

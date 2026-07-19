@@ -104,12 +104,12 @@ Example `texts/de.json`:
 
 One entry per recordable demo:
 
-- `id` (integer) — passed to the app as `--automation-demo <id>`.
-- `name` (string) — output subfolder name.
+- `id` (integer) — passed to the app as `--automation-demo <id>`; selects which app-side demo script runs. **Need not be unique** — several entries may share an `id` to record the same app-side demo at different sizes/settings (see [Variants](#variants-of-one-demo-eg-landscape--portrait)). `--demo all` records every entry; `--demo <id>` records every entry with that id.
+- `name` (string) — output subfolder name. Must be distinct per entry (it, not `id`, keys the output folder), so same-`id` variants need different names.
 - `fps` (integer, default 10) — capture frame rate; ~10 is the realistic ceiling.
 - `formats` (array of `"gif"`/`"mp4"`, default `["gif"]`) — exports to produce.
-- `width` / `height` (integers, optional) — window size the app must adopt. Recordings contain physical pixels: on a 150 % scaled display, 640×420 records as 960×630.
-- `app_settings` (object, optional) — opaque app-specific settings. The tool writes them to a temp JSON file and passes it as a single `--automation-demo-settings <path>` (deleted after the run). The key dialect is the app's own (FastCalculator: QSettings keys).
+- `width` / `height` (integers, optional) — window size the app must adopt. Recordings contain physical pixels: on a 150 % scaled display, 640×420 records as 960×630. The tool moves the window into the monitor's work area before recording, so the taskbar never appears in the capture — unless the window (in physical pixels) is larger than the work area itself; then the tool logs a warning and the fix is a smaller `width`/`height`.
+- `app_settings` (object, optional) — opaque app-specific settings. The tool writes them to a temp JSON file and passes it as a single `--automation-demo-settings <path>` (deleted after the run). The key dialect is the app's own (FastCalculator: QSettings keys). Anything the app reads **at startup** can go here — e.g. a full color theme is just the set of keys the app loads on launch, so a themed demo is fully reproducible from the config, no runtime commands needed.
 - `languages` (array of strings, optional) — record the demo once per language code. Each run passes `--automation-demo-language <lang>` to the app (which must set its UI language accordingly; requires connector >= 0.3.0) and writes to the `<lang>/` subfolder. Omitted or empty: one run, no language subfolder. `--demo <id>` always runs all of a demo's languages. Note: this per-demo key is unrelated to the top-level `languages` object of language mode.
 
 ### `languages` (object, language mode)
@@ -119,6 +119,37 @@ Map of language code → exact display name as it appears in the application's d
 - The display name is used to read back which language is currently selected (via UI Automation); it must match the dropdown entry exactly (a case-insensitive fallback exists).
 - The code is used as the output subfolder name.
 - Languages are iterated in alphabetical order of the codes, which must match the order of entries in the application's dropdown.
+
+## Variants of one demo (e.g. landscape + portrait)
+
+To record the **same** demo at more than one size or with different display
+settings, add multiple `demos[]` entries that share the same `id` (the app-side
+script) but have distinct `name`s and their own `width`/`height`/`app_settings`.
+`--demo all` records them all; each writes to its own `<name>/` folder.
+
+```json
+"demos": [
+  { "id": 1, "name": "basic-math",          "width": 640, "height": 420,
+    "app_settings": { "editor/font_point_size": 32, "window/margin": 20 } },
+  { "id": 1, "name": "basic-math-portrait", "width": 460, "height": 640,
+    "app_settings": { "editor/font_point_size": 28, "window/margin": 30 } }
+]
+```
+
+**What lives where** — the boundary that decides config-only vs. app change:
+
+| Vary this per variant | Where |
+|---|---|
+| size, `fps`, `formats`, font, margins, theme, `languages` | the config (JSON) — no app change |
+| the typed content / steps | the app-side demo script, keyed by `id` |
+
+Two entries with the same `id` always play the **same** steps. If a variant needs
+**different content** (e.g. more lines to fill a taller portrait window), give it a
+**new `id`** and add a matching demo script in the app — content cannot be changed
+from the config alone.
+
+(Same-`id` entries share the temp file `demo-<id>-settings.json`, but runs are
+sequential, so there is no collision.)
 
 ## Adding a new application (language screenshots)
 
