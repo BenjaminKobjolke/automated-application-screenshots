@@ -11,8 +11,10 @@ SW_RESTORE = 9
 SW_SHOW = 5
 MONITOR_DEFAULTTONEAREST = 2
 SWP_NOSIZE = 0x0001
+SWP_NOMOVE = 0x0002
 SWP_NOZORDER = 0x0004
 SWP_NOACTIVATE = 0x0010
+HWND_TOPMOST = -1
 
 # Load Windows DLLs
 user32 = ctypes.windll.user32
@@ -95,6 +97,35 @@ class WindowFinder:
                 if hwnd:
                     return hwnd
         return None
+
+    @staticmethod
+    def visible_windows_by_title(substring: str) -> list[int]:
+        """All visible top-level windows whose title contains ``substring``."""
+        result: list[int] = []
+
+        def enum_callback(hwnd, _):
+            if user32.IsWindowVisible(hwnd) and substring.lower() in (
+                WindowFinder.get_window_title(hwnd).lower()
+            ):
+                result.append(hwnd)
+            return True
+
+        enum_func = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+        user32.EnumWindows(enum_func(enum_callback), 0)
+        return result
+
+    @staticmethod
+    def set_topmost(hwnd: int) -> None:
+        """Raise the window above all others (reliable, unlike SetForegroundWindow).
+
+        Screen-region capture reads whatever is drawn at the window's rect, so the
+        target must sit on top of any leftover/overlapping window. SetWindowPos with
+        HWND_TOPMOST does not require foreground rights, so it works even when the
+        tool's own process is not in the foreground.
+        """
+        user32.SetWindowPos(
+            hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
+        )
 
     @staticmethod
     def find_by_title_substring(substring: str) -> int | None:

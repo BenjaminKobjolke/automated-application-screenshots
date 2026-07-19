@@ -1,4 +1,10 @@
-"""Screenshot capture logic using pyautogui for reliable cross-DPI capture."""
+"""Screenshot capture logic using pyautogui for reliable cross-DPI capture.
+
+Capture is a screen-region grab of the window's rectangle, so the window must be
+the topmost thing at those coordinates when a frame is taken. `demo_cli` raises
+the target window to topmost and waits for any previous run's window to close
+before recording, so nothing else can bleed into the frame.
+"""
 
 import ctypes
 from pathlib import Path
