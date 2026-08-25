@@ -208,3 +208,5 @@ __marimo__/
 screenshots
 claude-plans
 tmp/commit_msg.tmp
+.claude/
+/PLAN_*.md
