@@ -210,3 +210,7 @@ claude-plans
 tmp/commit_msg.tmp
 .claude/
 /PLAN_*.md
+
+# Remotion composer (tour rendering)
+composer/node_modules/
+composer/out/
