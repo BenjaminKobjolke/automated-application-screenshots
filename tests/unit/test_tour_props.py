@@ -157,8 +157,11 @@ def test_transcode_uses_a_bitrate_when_given_one(tmp_path, monkeypatch):
     video.transcode_mp4(tmp_path / "in.mp4", {"bitrate": 800_000}, tmp_path / "out.mp4")
     args = calls[0]
     assert args[args.index("-b:v") + 1] == "800000"
-    assert args[args.index("-maxrate") + 1] == "800000"
     assert "-crf" not in args
+    # No VBV cap: it makes x264 undershoot the budget by a third on easy
+    # content, which is quality paid for and not delivered.
+    assert "-maxrate" not in args
+    assert "-bufsize" not in args
 
 
 def test_transcode_falls_back_to_crf(tmp_path, monkeypatch):
