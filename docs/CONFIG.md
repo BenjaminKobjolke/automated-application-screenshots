@@ -73,7 +73,9 @@ Fallback window search for language mode: if no window is found by `process_name
 
 ### `output_dir` (string)
 
-Output root. Language mode: `<output_dir>/<language-code>/<screenshot_filename>` (overridable with `--output`). Demo mode: `<output_dir>/demos/<demo-name>/` receives `demo.gif`, `demo.mp4`, and the stills; a demo with `languages` writes to `<output_dir>/demos/<demo-name>/<lang>/` instead, once per language. Relative paths resolve against the current working directory.
+Output root. Language mode: `<output_dir>/<language-code>/<screenshot_filename>` (overridable with `--output`). Demo mode: `<output_dir>/demos/<demo-name>/` receives `demo.gif`, `demo.mp4`, and the stills; a demo with `languages` writes to `<output_dir>/demos/<demo-name>/<lang>/` instead, once per language. Compose steps write their artifacts here too, at the path each step's `output` gives.
+
+A **relative** path resolves against the folder holding the config file, not the current working directory — a config committed next to the app it records stays portable, and no config needs an absolute `D:/...` path.
 
 ### `screenshot_filename` (string, language mode)
 
@@ -89,6 +91,9 @@ How to start the target application.
 
 - `command` (array of strings) — the argv to run. Placeholders `{demo_id}`, `{port}`, `{width}`, `{height}` are substituted per argument. `{width}`/`{height}` require the demo to define `width`/`height`.
 - `cwd` (string, optional) — working directory for the command; relative paths resolve against the tool's current working directory.
+- `env` (object, optional) — extra environment variables for the child process. Values expand `{temp}`, `{demo_id}`, `{name}` and `{lang}`, so `{"APP_PROFILE": "{temp}/myapp-demo-profile"}` points the app at a throwaway profile without a wrapper script.
+- `inherit_env` (boolean, default `false`) — keep the tool's own environment. By default the tool **removes its own virtualenv** from the child's `PATH`: it runs under `uv`, whose venv is first on `PATH` and holds none of the recorded app's dependencies, so an app launched through a plain `python` would otherwise fail to import itself.
+- `minimize_all` (boolean, default `true`) — clear the desktop before the app starts. Capture reads screen *pixels* at the window's rect, so anything drawn over it is burned into every frame — including the console the tool itself spawns — and a semi-transparent window shows whatever is behind it. See [RECORDING_ENVIRONMENT.md](RECORDING_ENVIRONMENT.md).
 
 ### `texts_dir` (string, demo mode, optional)
 
@@ -111,6 +116,14 @@ One entry per recordable demo:
 - `width` / `height` (integers, optional) — window size the app must adopt. Recordings contain physical pixels: on a 150 % scaled display, 640×420 records as 960×630. The tool moves the window into the monitor's work area before recording, so the taskbar never appears in the capture — unless the window (in physical pixels) is larger than the work area itself; then the tool logs a warning and the fix is a smaller `width`/`height`.
 - `app_settings` (object, optional) — opaque app-specific settings. The tool writes them to a temp JSON file and passes it as a single `--automation-demo-settings <path>` (deleted after the run). The key dialect is the app's own (FastCalculator: QSettings keys). Anything the app reads **at startup** can go here — e.g. a full color theme is just the set of keys the app loads on launch, so a themed demo is fully reproducible from the config, no runtime commands needed.
 - `crop` (object, optional) — pixels removed from each captured frame: `{"top", "right", "bottom", "left"}` (any subset, default 0). The tool already captures the window's real visible bounds (`DwmGetWindowAttribute` extended frame bounds) clamped to the monitor work area, so the invisible resize border and the taskbar never appear; use `crop` only for residual trimming (e.g. a rounded-corner pixel or a themed 1px edge). Applied in physical pixels, identically to every frame. MP4 export pads an odd resulting side by 1px (x264 needs even dimensions).
+- `group` (string, optional) — which compose step this demo feeds, e.g. `"tour"` or `"feature"`. A compose step with the same `group` picks up every demo in it, in `id` order. This replaces matching on a name prefix, which no config could state and every post-processing script had to re-implement.
+- `caption` (string, optional) — the title a `tour` compose step burns over this chapter.
+- `captions` (object, optional) — per-language wording, `{"de": "Zwei Fenster"}`. A language with no entry falls back to `caption`.
+- `verify` (array, optional) — side effects that prove the demo actually landed, checked after it ends. A demo can play to the end, report every event and still have missed — a dialog stole a keystroke, a viewer never took focus. Two forms, both expanding `{temp}`/`{demo_id}`/`{name}`/`{lang}`:
+  - `{"exists": "{temp}/myapp/out.txt"}`
+  - `{"contains": {"file": "{temp}/myapp/Settings.json", "text": "video_viewer_volume"}}`
+
+  A failed check fails the run, so a silently broken demo stops being something you find months later in the video.
 - `languages` (array of strings, optional) — record the demo once per language code. Each run passes `--automation-demo-language <lang>` to the app (which must set its UI language accordingly; requires connector >= 0.3.0) and writes to the `<lang>/` subfolder. Omitted or empty: one run, no language subfolder. `--demo <id>` always runs all of a demo's languages. Note: this per-demo key is unrelated to the top-level `languages` object of language mode.
 
 ### `languages` (object, language mode)
@@ -120,6 +133,105 @@ Map of language code → exact display name as it appears in the application's d
 - The display name is used to read back which language is currently selected (via UI Automation); it must match the dropdown entry exactly (a case-insensitive fallback exists).
 - The code is used as the output subfolder name.
 - Languages are iterated in alphabetical order of the codes, which must match the order of entries in the application's dropdown.
+
+## `compose` (array, optional)
+
+What to build **out of** the recordings once they exist. Recording produces
+intermediates — one clip per chapter, one still per theme; composing produces
+the artifacts a README actually shows. Run it with `--compose`, or
+`--demo all --compose` to record and build in one go.
+
+```json
+"compose": [
+  {"type": "tour",       "group": "tour",    "output": "tour/feature-tour.mp4",
+   "width": 1280, "caption_seconds": 5,
+   "intro": {"title": "fman", "subtitle": "keyboard-first file manager"},
+   "outro": {"title": "github.com/you/fman"}},
+
+  {"type": "stills_gif", "demo": "themes",   "output": "themes/themes.gif",
+   "hold": 2.0, "width": 960},
+
+  {"type": "mp4_gif",    "group": "feature", "output": "features/{name}.gif",
+   "fps": 5, "width": 800, "colors": 64, "max_size": "2MB", "fit": ["colors", "fps"]}
+]
+```
+
+Every step needs `type`, `output`, and **exactly one** of `group` (every demo in
+that group) or `demo` (one demo by name). `output` is relative to `output_dir`
+and may contain `{name}` (the demo) and `{lang}`. A step whose group or demo
+matches nothing fails at config load, not silently at build time.
+
+### `type: "tour"`
+
+Joins a group's chapters into one MP4, each with its caption over the first
+seconds, optionally between title cards. Rendered with **Remotion**, so this is
+the one step that needs Node.js 18+ and `npm install` in `composer/` — recording
+and both GIF steps are pure Python. Chapters are joined in `id` order.
+
+| Option | Default | Meaning |
+|---|---|---|
+| `width` | 1280 | Composition width; height follows the recorded aspect ratio |
+| `fps` | 30 | Composition frame rate |
+| `caption_seconds` | 5 | How long each chapter's title stays up |
+| `crf` | 18 | Quality of the render itself |
+| `intro` / `outro` | none | `{"title": ..., "subtitle": ...}` title cards |
+
+### `type: "stills_gif"`
+
+Turns a demo's PNG stills into a looping slideshow. The stills **are** the list:
+they are discovered by name order, so a new theme (or locale, or plugin) reaches
+the GIF by being recorded, with no config edit. Give the demo `"formats": []` if
+the video is not wanted.
+
+| Option | Default | Meaning |
+|---|---|---|
+| `hold` | 2.0 | Seconds each still is on screen |
+| `width` | 960 | Output width |
+| `colors` | 256 | Palette size |
+
+### `type: "mp4_gif"`
+
+Re-encodes recorded clips as GIFs — what a README needs when the image has to
+sit next to a paragraph (see [PUBLISHING.md](PUBLISHING.md)). With `group`, one
+GIF per demo, so `output` wants `{name}`.
+
+| Option | Default | Meaning |
+|---|---|---|
+| `fps` | 5 | Frames per second |
+| `width` | 800 | Output width |
+| `colors` | 64 | Palette size |
+
+### Size budgets
+
+Any step may state how big its artifact is allowed to be, and which settings the
+tool may trade away to get there.
+
+```json
+{"type": "mp4_gif", "group": "feature", "output": "features/{name}.gif",
+ "width": 800, "fps": 5, "colors": 64,
+ "max_size": "2MB", "fit": ["colors", "fps"]}
+```
+
+- `max_size` — `"2MB"`, `"1.5MB"`, `"500KB"`, or plain bytes.
+- `fit` — the knobs the search may move, **in the order it should spend them**.
+  Anything not listed is a constraint: in the example `width` stays at 800 no
+  matter what. Defaults per type: `tour` `["crf", "width", "fps"]`, `stills_gif`
+  `["colors", "width"]`, `mp4_gif` `["colors", "fps", "width"]`. `"fit": []`
+  means *check the budget and warn, change nothing*.
+- `on_miss` — `"warn"` (default) keeps the closest attempt and logs what it
+  tried; `"error"` fails the build instead.
+
+At most **three** encodes run. The first uses exactly the settings you wrote, so
+a step that already fits costs nothing extra; if it overshoots, the knobs step
+down far enough to cover the overshoot in one jump rather than one rung at a
+time. What is kept is the **largest attempt that fits** — the best quality under
+the budget — or the smallest one if nothing fits. Every attempt logs its
+settings and size, so you can read the search and hard-code the winner if you
+prefer a fixed answer.
+
+A `tour` never searches: its budget is arithmetic on the duration, so one
+bitrate-targeted ffmpeg pass hits it. The Remotion render happens **once** —
+iterating headless Chrome would cost more than the whole rest of the pipeline.
 
 ## Variants of one demo (e.g. landscape + portrait)
 

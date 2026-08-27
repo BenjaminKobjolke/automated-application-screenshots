@@ -2,7 +2,7 @@
   "process_name": "KeyboardLayoutWatcher.exe",
   "title_substring": "Keyboard Layout Watcher",
   "dropdown_relative_pos": [175, 248],
-  "output_dir": "screenshots",
+  "output_dir": "../screenshots",
   "screenshot_filename": "screenshot.png",
   "delay_after_change": 0.3,
   "languages": {

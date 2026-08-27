@@ -31,6 +31,10 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
+cd composer
+call npm install
+cd..
+
 echo.
 echo ================================
 echo Installation complete!

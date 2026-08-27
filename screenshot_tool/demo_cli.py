@@ -5,6 +5,7 @@ server port -> find its window -> record frames from ``demo_started`` to
 ``demo_ended`` (saving stills on ``screenshot`` events) -> export.
 """
 
+import os
 import subprocess
 import tempfile
 import time
@@ -14,7 +15,7 @@ import psutil
 
 from . import config
 from .app_logger import AppLogger
-from .config import DemoSpec, build_launch_command, write_app_settings_file
+from .config import DemoSpec, LaunchSettings, build_launch_command, write_app_settings_file
 from .demo_server import DemoServer
 from .exporter import export_gif, export_mp4
 from .recorder import Recorder
@@ -31,6 +32,59 @@ EXIT_GRACE_S = 10.0
 def _run_label(demo: DemoSpec, language: str | None) -> str:
     """Display name of one run: 'basic-math [de]', or just the name."""
     return f"{demo.name} [{language}]" if language else demo.name
+
+
+def _child_env(
+    launch: LaunchSettings, demo: DemoSpec, language: str | None
+) -> dict[str, str] | None:
+    """The environment the target app is launched with.
+
+    The tool runs under uv, which puts ITS virtualenv first on PATH - and that
+    venv has none of the recorded app's dependencies, so an app launched
+    through a plain `python` would fail to import itself. Dropping it here
+    saves every consumer the same three lines of shell.
+    """
+    if launch.inherit_env and not launch.env:
+        return None
+    env = dict(os.environ)
+    if not launch.inherit_env:
+        venv = env.pop("VIRTUAL_ENV", None)
+        if venv:
+            scripts = os.path.join(venv, "Scripts")
+            parts = [p for p in env.get("PATH", "").split(os.pathsep) if p and p != scripts]
+            env["PATH"] = os.pathsep.join(parts)
+    for key, value in launch.env:
+        env[key] = config.expand(value, demo, language)
+    return env
+
+
+def _clear_stale_stills(out_dir: Path) -> None:
+    """Drop stills from a previous take of this demo.
+
+    A still is named after what it shows (a theme, a state). If that thing is
+    gone, its PNG would otherwise linger and end up in the next slideshow -
+    silently, because nothing else knows it should not be there.
+    """
+    for stale in out_dir.glob("*.png"):
+        stale.unlink()
+
+
+def _run_verify(demo: DemoSpec, language: str | None) -> bool:
+    """Check the demo's side effects; False (and a reason) if one is missing."""
+    ok = True
+    for check in demo.verify:
+        path = Path(config.expand(check.path, demo, language))
+        if not path.is_file():
+            AppLogger.error(f"Verify failed: {check.describe()} - no such file")
+            ok = False
+        elif check.kind == "contains":
+            content = path.read_text(encoding="utf-8", errors="replace")
+            if check.text is not None and check.text not in content:
+                AppLogger.error(f"Verify failed: {check.describe()}")
+                ok = False
+    if demo.verify and ok:
+        AppLogger.info(f"Verified {len(demo.verify)} side effect(s).")
+    return ok
 
 
 class DemoCLI:
@@ -94,8 +148,12 @@ class DemoCLI:
         server = DemoServer()
         settings_file = write_app_settings_file(demo, Path(tempfile.gettempdir()))
         cmd = build_launch_command(launch, demo, server.port, settings_file, language, texts_file)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        _clear_stale_stills(out_dir)
+        if launch.minimize_all:
+            WindowFinder.minimize_all()
         AppLogger.info(f"Launching: {' '.join(cmd)}")
-        proc = subprocess.Popen(cmd, cwd=launch.cwd)
+        proc = subprocess.Popen(cmd, cwd=launch.cwd, env=_child_env(launch, demo, language))
         recorder: Recorder | None = None
         try:
             if not self._accept_connection(server, proc):
@@ -126,7 +184,7 @@ class DemoCLI:
             recorder.join(timeout=5)
             # Export even after an abnormal end - partial recordings help debugging
             self._export(demo, recorder, out_dir)
-            return ok and bool(recorder.frames)
+            return ok and bool(recorder.frames) and _run_verify(demo, language)
         finally:
             server.close()
             self._shutdown(proc)

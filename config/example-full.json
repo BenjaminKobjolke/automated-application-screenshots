@@ -1,0 +1,136 @@
+{
+  "process_name": "python.exe",
+  "title_substring": "Example App",
+  "output_dir": "../output/example",
+  "texts_dir": "../config/example-texts",
+
+  "dropdown_relative_pos": [175, 248],
+  "screenshot_filename": "screenshot.png",
+  "delay_after_change": 0.3,
+  "languages": {
+    "de": "Deutsch",
+    "en": "English"
+  },
+
+  "launch": {
+    "command": [
+      "run_demo.bat",
+      "{demo_id}",
+      "{port}",
+      "{width}",
+      "{height}"
+    ],
+    "cwd": "..",
+    "env": {
+      "EXAMPLE_DATA_DIR": "{temp}/example-demo-profile",
+      "EXAMPLE_SCRATCH": "{temp}/example-demo-{demo_id}"
+    },
+    "inherit_env": false,
+    "minimize_all": true
+  },
+
+  "demos": [
+    {
+      "id": 1,
+      "name": "overview",
+      "fps": 10,
+      "formats": ["gif", "mp4"],
+      "width": 1280,
+      "height": 800,
+      "crop": { "top": 0, "right": 0, "bottom": 1, "left": 0 },
+      "app_settings": { "editor/font_point_size": 18 }
+    },
+    {
+      "id": 2,
+      "name": "themes",
+      "fps": 2,
+      "formats": [],
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "id": 3,
+      "name": "tour-a-panes",
+      "fps": 10,
+      "formats": ["mp4"],
+      "width": 1280,
+      "height": 800,
+      "group": "tour",
+      "caption": "Two panes, one keyboard",
+      "captions": { "de": "Zwei Fenster, eine Tastatur" }
+    },
+    {
+      "id": 4,
+      "name": "tour-b-organize",
+      "fps": 10,
+      "formats": ["mp4"],
+      "width": 1280,
+      "height": 800,
+      "group": "tour",
+      "caption": "Organize without leaving the keyboard",
+      "verify": [
+        { "exists": "{temp}/example-demo-{demo_id}/new-folder" },
+        {
+          "contains": {
+            "file": "{temp}/example-demo-profile/Settings.json",
+            "text": "last_sort_order"
+          }
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "feature-goto",
+      "fps": 5,
+      "formats": ["mp4"],
+      "width": 1280,
+      "height": 800,
+      "group": "feature"
+    },
+    {
+      "id": 9,
+      "name": "localized",
+      "fps": 10,
+      "formats": ["mp4"],
+      "width": 1280,
+      "height": 800,
+      "languages": ["en", "de"]
+    }
+  ],
+
+  "compose": [
+    {
+      "type": "tour",
+      "group": "tour",
+      "output": "tour/feature-tour.mp4",
+      "width": 1280,
+      "fps": 30,
+      "crf": 18,
+      "caption_seconds": 5,
+      "intro": { "title": "Example App", "subtitle": "a feature tour" },
+      "outro": { "title": "github.com/you/example-app" },
+      "max_size": "20MB"
+    },
+    {
+      "type": "stills_gif",
+      "demo": "themes",
+      "output": "themes/themes.gif",
+      "hold": 2.0,
+      "width": 960,
+      "colors": 256,
+      "max_size": "4MB",
+      "fit": ["colors", "width"]
+    },
+    {
+      "type": "mp4_gif",
+      "group": "feature",
+      "output": "features/{name}.gif",
+      "fps": 5,
+      "width": 800,
+      "colors": 64,
+      "max_size": "2MB",
+      "fit": ["colors", "fps"],
+      "on_miss": "warn"
+    }
+  ]
+}

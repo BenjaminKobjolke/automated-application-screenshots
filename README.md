@@ -4,8 +4,25 @@ Automated screenshot capture tool for Windows applications. Two modes:
 
 - **Language screenshots** — cycles through an app's language dropdown and saves one screenshot per language to `screenshots/<language-code>/screenshot.png`.
 - **Demo recordings** — launches an app that implements the [automation interface](docs/AUTOMATION_INTERFACE.md), records a scripted demo of it, and exports animated **GIF/MP4** plus PNG stills.
+- **Composition** — joins the recordings into the artifacts a README actually shows: a captioned feature tour (rendered with Remotion), slideshow GIFs, inline feature GIFs — each optionally held to a size budget.
 
 The target application is defined by a JSON config file — either in `config/` here, or kept in the app's own repo (FastCalculator keeps its demo config in `calculator/tools/create_media/` with a `create_demos.bat` next to it). Ships with a config for **KeyboardLayoutWatcher** (41 languages).
+
+## What you can build
+
+| I want to... | Start here |
+|---|---|
+| find out what this can do at all | [docs/DEMO_COOKBOOK.md](docs/DEMO_COOKBOOK.md) — every capability as a question |
+| write the config | [docs/CONFIG.md](docs/CONFIG.md) — every key, plus `config/example-full.json` |
+| make my app recordable | [docs/AUTOMATION_INTERFACE.md](docs/AUTOMATION_INTERFACE.md), or the [connector library](../automated-application-screenshots-python-connector) for Python apps |
+| write the demo scripts | the connector's `docs/WRITING_DEMOS.md` |
+| get a clean, repeatable recording | [docs/RECORDING_ENVIRONMENT.md](docs/RECORDING_ENVIRONMENT.md) |
+| put the result in a README | [docs/PUBLISHING.md](docs/PUBLISHING.md) |
+| see what one config does | `screenshot-tool --config app.json --list` |
+
+The split, if you are wondering which repo to read: **this tool does everything
+outside the app** (launch, record, compose, publish); the **connector does
+everything inside it** (steps, players, demo registry).
 
 ## Requirements
 
@@ -13,6 +30,9 @@ The target application is defined by a JSON config file — either in `config/` 
 - Python >= 3.10
 - [uv](https://github.com/astral-sh/uv) (`winget install astral-sh.uv`)
 - The target application must be running and its window visible
+- **Node.js 18+ only for the `tour` compose step** (Remotion). Recording and the
+  GIF steps are pure Python; run `npm install` in `composer/` before your first
+  tour.
 
 ## Installation
 
@@ -48,8 +68,9 @@ Runs `uv sync` to install dependencies.
 | `--output`, `-o` | Output directory | from config |
 | `--start-from`, `-s` | Language code to start from (skips earlier ones) | first language |
 | `--delay`, `-d` | Seconds to wait after each language change | from config |
-| `--list`, `-l` | List all supported language codes and exit | |
+| `--list`, `-l` | List what the config can record and build, and exit | |
 | `--demo` | Record demo `<id>` (or `all`) of the configured app and exit | |
+| `--compose` | Build the config's compose steps (`all`, or a matching output/type) | `all` |
 
 `list_supported_languages.bat` is a shortcut for `--list`. Details: [docs/COMMAND_LINE_ARGUMENTS.md](docs/COMMAND_LINE_ARGUMENTS.md).
 
@@ -76,6 +97,32 @@ The tool launches the app with the demo id, an event port, and the configured wi
    "languages": ["en", "de"]}
 ]
 ```
+
+### Composing the artifacts
+
+Recording produces intermediates — one clip per chapter, one still per theme.
+`--compose` builds what actually gets published out of them:
+
+```json
+"compose": [
+  {"type": "tour",       "group": "tour",    "output": "tour/feature-tour.mp4",
+   "intro": {"title": "Your App", "subtitle": "a feature tour"}},
+  {"type": "stills_gif", "demo": "themes",   "output": "themes/themes.gif", "hold": 2.0},
+  {"type": "mp4_gif",    "group": "feature", "output": "features/{name}.gif",
+   "max_size": "2MB", "fit": ["colors", "fps"]}
+]
+```
+
+```
+uv run screenshot-tool --config app.json --demo all --compose   # record, then build
+uv run screenshot-tool --config app.json --compose themes       # rebuild just one
+```
+
+Chapters carry a `group` and a `caption`; the tour joins them in `id` order and
+burns each caption over the start of its chapter. `max_size` states how big an
+artifact may be and `fit` which settings may be traded away to get there — at
+most three encodes, keeping the best quality that fits. Details:
+[docs/CONFIG.md](docs/CONFIG.md#compose-array-optional).
 
 ### Multi-language demos
 

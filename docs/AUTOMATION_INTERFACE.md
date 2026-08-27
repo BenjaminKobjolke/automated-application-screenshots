@@ -1,8 +1,9 @@
 # Automation Interface — make your app demo-recordable
 
 Any desktop app can be recorded by this tool as an animated demo (GIF/MP4 plus
-PNG stills). The app implements a small contract: four CLI arguments and three
-JSON events over a localhost socket. FastCalculator
+PNG stills). The app implements a small contract: a namespaced set of CLI
+arguments (one required, six optional) and three JSON events over a localhost
+socket. FastCalculator
 (`D:\GIT\BenjaminKobjolke\calculator`) is the working reference implementation.
 
 ## 1. CLI arguments your app must accept
@@ -102,10 +103,20 @@ automated-screenshot-connector = { path = "../automated-application-screenshots-
 It ships the step model (`TypeText`, `Pause`, `Command`, `Screenshot`,
 `DemoScript`), the socket `DemoClient`, `parse_demo_args` (consumes only the
 `--automation-demo*` options, returns your app's own args untouched), and for
-Qt apps `automated_screenshot_connector.qt` with the typing `DemoPlayer` and
+Qt apps `automated_screenshot_connector.qt` with two players and
 `prepare_demo_settings` (wiped temp QSettings namespace seeded from the
-`--automation-demo-settings` JSON). Core is stdlib-only; the qt module needs your app's PySide6. Your app
-keeps only its demo content (`DEMOS: dict[int, DemoScript]`). See the library
+`--automation-demo-settings` JSON):
+
+- `DemoPlayer` types into a single `QPlainTextEdit` — for input-box apps.
+- `KeyEventDemoPlayer` posts real `QKeyEvent`s to the focused widget, so
+  shortcut-driven apps work: command palettes, modal search dialogs, viewers.
+  It executes the `PressKey(chord)` step (`"Ctrl+Shift+P"`, `"Down"`,
+  `"Escape"`), validates every chord up front, and hands any step type it does
+  not know to an overridable `handle_step`.
+
+Core is stdlib-only; the qt module takes PySide6 **or PyQt5**, whichever your app
+already has. Your app keeps only its demo content, registered in a
+`DemoRegistry`. See the library
 README for the wiring snippet; FastCalculator's `main.py` is the working example.
 
 ## 5. Reference client for non-Python apps (stdlib only, copy-paste)

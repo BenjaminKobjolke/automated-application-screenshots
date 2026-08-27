@@ -8,8 +8,9 @@ Run via `uv run screenshot-tool [options]` (or `start.bat`).
 | `--output`, `-o` | `DIR` | Output directory. Screenshots are saved as `<DIR>/<language-code>/<screenshot_filename>` | `output_dir` from config |
 | `--start-from`, `-s` | `CODE` | Language code to start from; earlier languages are skipped. Useful to resume an aborted run | first language |
 | `--delay`, `-d` | `SECONDS` | Delay after each language change before capturing (float) | `delay_after_change` from config |
-| `--list`, `-l` | | List all supported language codes from the config and exit | |
+| `--list`, `-l` | | List what the config can record and build — demos with their ids, groups, formats and languages, then the compose steps, then the language codes — and exit | |
 | `--demo` | `ID\|all` | Record the given demo (or all demos) defined in the config and exit — launches the app itself, exports GIF/MP4 + stills (see [AUTOMATION_INTERFACE.md](AUTOMATION_INTERFACE.md)). A demo with `languages` records once per language. Not combinable with `--list`/`--start-from` | |
+| `--compose` | `ALL\|NAME` | Build the config's `compose` steps and exit: the joined tour, slideshow GIFs, inline GIFs (see [CONFIG.md](CONFIG.md#compose-array-optional)). `NAME` matches a step's `output` path or its `type`; omitted, it means all. Combine with `--demo` to record and then build — a failed recording stops the build rather than composing stale inputs. Not combinable with `--list`/`--start-from` | `all` |
 | `--help`, `-h` | | Show usage help and exit | |
 
 ## Examples
@@ -23,9 +24,13 @@ uv run screenshot-tool --delay 0.5                       # Wait 0.5s between cap
 uv run screenshot-tool --config config/other-app.json    # Other target app
 uv run screenshot-tool --config app.json --demo 1        # Record demo 1
 uv run screenshot-tool --config app.json --demo all      # Record every demo
+uv run screenshot-tool --config app.json --compose       # Build every artifact
+uv run screenshot-tool --config app.json --compose tour  # Rebuild just the tour
+uv run screenshot-tool --config app.json --demo all --compose   # Record, then build
+uv run screenshot-tool --config app.json --list          # What can this config do?
 ```
 
 ## Exit codes
 
 - `0` — all screenshots captured / all demos recorded (or `--list`/`--help` shown)
-- `1` — window not found, unknown language code or demo id, config error, at least one capture failed, or a demo ended abnormally (partial recording still exported)
+- `1` — window not found, unknown language code or demo id, config error, at least one capture failed, a demo ended abnormally (partial recording still exported), a `verify` check failed, or a compose step failed

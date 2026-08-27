@@ -1,0 +1,20 @@
+{
+  "name": "screenshot-tool-composer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Remotion project that joins recorded demo chapters into a captioned tour. Driven by screenshot_tool/compose/tour.py; not meant to be used on its own.",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts Tour out/tour.mp4"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "typescript": "^5.5.0"
+  }
+}

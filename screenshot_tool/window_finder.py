@@ -1,7 +1,9 @@
 """Windows API integration for finding application windows."""
 
 import ctypes
+import time
 from ctypes import wintypes
+
 import psutil
 
 from .app_logger import AppLogger
@@ -9,6 +11,7 @@ from .app_logger import AppLogger
 # Windows API constants
 SW_RESTORE = 9
 SW_SHOW = 5
+SW_MINIMIZE = 6
 MONITOR_DEFAULTTONEAREST = 2
 SWP_NOSIZE = 0x0001
 SWP_NOMOVE = 0x0002
@@ -31,6 +34,28 @@ dwmapi.DwmGetWindowAttribute.argtypes = [
     ctypes.c_void_p,
     wintypes.DWORD,
 ]
+
+
+# EnumWindows hands every top-level window to this callback signature.
+_ENUM_WINDOWS_PROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+# The desktop and the shell are windows too; minimizing them blacks the screen
+# out instead of clearing it.
+_SHELL_CLASSES = frozenset(
+    {
+        "Progman",
+        "WorkerW",
+        "Shell_TrayWnd",
+        "Shell_SecondaryTrayWnd",
+        "Button",
+        "NotifyIconOverflowWindow",
+        "Windows.UI.Core.CoreWindow",
+    }
+)
+
+# ShowWindow returns while the shell is still animating the windows away, and
+# the target app is launched immediately afterwards.
+MINIMIZE_SETTLE_S = 1.2
 
 
 class _MONITORINFO(ctypes.Structure):
@@ -109,6 +134,51 @@ class WindowFinder:
                 if hwnd:
                     return hwnd
         return None
+
+    @staticmethod
+    def should_minimize(hwnd: int) -> bool:
+        """Whether this top-level window is one a recording must not see."""
+        if not user32.IsWindowVisible(hwnd) or user32.IsIconic(hwnd):
+            return False
+        # A top-level window with no title is a helper/tool window - there is
+        # nothing visible in it to leak into a frame.
+        if user32.GetWindowTextLengthW(hwnd) <= 0:
+            return False
+        name = ctypes.create_unicode_buffer(256)
+        user32.GetClassNameW(hwnd, name, len(name))
+        return name.value not in _SHELL_CLASSES
+
+    @staticmethod
+    def minimize_all() -> int:
+        """Minimize every visible top-level window, and let the shell settle.
+
+        Two independent reasons, both fatal to a take: capture reads screen
+        PIXELS at the target window's rect, so anything drawn over it is burned
+        into every frame - and if the app records semi-transparent, whatever
+        sits behind it shows through without ever overlapping. The tool spawns
+        a console per demo, so it is its own worst offender.
+
+        Enumerating and minimizing each window rather than the shell's
+        MinimizeAll (the Win+D shortcut), which toggles rather than minimizes
+        and is ignored outright in some states - it reports success while
+        leaving windows on screen.
+
+        Returns:
+            How many windows were minimized.
+        """
+        minimized = 0
+
+        def visit(hwnd: int, _param: int) -> bool:
+            nonlocal minimized
+            if WindowFinder.should_minimize(hwnd):
+                user32.ShowWindow(hwnd, SW_MINIMIZE)
+                minimized += 1
+            return True
+
+        user32.EnumWindows(_ENUM_WINDOWS_PROC(visit), 0)
+        AppLogger.info(f"Minimized {minimized} window(s) before recording.")
+        time.sleep(MINIMIZE_SETTLE_S)
+        return minimized
 
     @staticmethod
     def set_topmost(hwnd: int) -> None:
