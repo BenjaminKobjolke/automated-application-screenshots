@@ -29,17 +29,22 @@ Flutter apps get all of this from the
    API). Android minSdk 23; the plugin's manifest brings its own foreground
    service and permissions.
 
-2. Wrap the `MaterialApp` in `AutomationDemoHost` and give it a registry and
-   an `onPrepare` that resets the app to a clean state (apply the config's
-   `app_settings`, pop to home, dismiss dialogs):
+2. Wrap the `MaterialApp` in `AutomationDemoHost` and give it a registry, an
+   `onPrepare` that resets the app to a clean state (apply the config's
+   `app_settings`, pop to home, dismiss dialogs) and an `onRestore` that undoes
+   it once the tool disconnects:
 
    ```dart
    AutomationDemoHost(
      registry: buildDemoRegistry(navigatorKey),
-     onPrepare: (settings, language) => prepareDemo(navigatorKey, settings, language),
+     onPrepare: demo.prepare,   // apply app_settings, pop to home
+     onRestore: demo.restore,   // give the device its own settings back
      child: MaterialApp(navigatorKey: navigatorKey, home: const HomeScreen()),
    )
    ```
+
+   `app_settings` are written to the app's real stores, so without `onRestore`
+   the device keeps the demo account and demo backend URL after the run.
 
    Without `--dart-define=AUTOMATION_HOST=...` the host renders the child and
    does nothing, so release builds are unaffected.
@@ -88,7 +93,14 @@ Full key reference: [CONFIG.md](CONFIG.md); loadable example:
 
 ## 3. Recording a run
 
-Both machines on the same LAN (an emulator reaches the host PC at `10.0.2.2`).
+Both machines on the same LAN (an emulator reaches the host PC at `10.0.2.2`),
+and the PC's firewall must allow inbound TCP on the configured port — a network
+Windows classifies as *Public* drops the device's connection silently, and
+neither side logs it.
+
+Either side may be started first: the tool waits 30 s for the app, and the app
+(from connector 0.1.0 on) retries for 3 minutes, which comfortably covers a
+`fvm flutter run` build and install.
 
 1. **PC** — start the tool; it listens and waits up to 30 s for the app:
 
@@ -116,15 +128,16 @@ Both machines on the same LAN (an emulator reaches the host PC at `10.0.2.2`).
    `<still>.png` per screenshot step.
 
 One connection serves the whole `--demo all` run; the app stays open between
-demos. Timeouts are the desktop ones: 30 s to connect, 60 s between events,
-300 s per demo. A failed step (missing key, no focused field, unknown custom
+demos. Timeouts are the desktop ones: 30 s to accept the app's connection, 60 s
+between events, 300 s per demo. The 30 s is the *tool's* window only — the app
+keeps retrying on its side, so a tool started second is still picked up. A failed step (missing key, no focused field, unknown custom
 action) arrives as an `error` event and fails that run with the reason.
 
 ## 4. Troubleshooting
 
 | Symptom | Cause / fix |
 |---|---|
-| `App never connected to the demo port.` | Wrong `AUTOMATION_HOST`, firewall blocking the port on the PC, or the app was started before the tool. Start the tool first. |
+| `App never connected to the demo port.` | Wrong `AUTOMATION_HOST`, or the PC's firewall is dropping the port. On Windows: `New-NetFirewallRule -DisplayName "screenshot-tool demo port" -Direction Inbound -Protocol TCP -LocalPort <port> -Action Allow -Profile Any` in an elevated shell; check the listener with `netstat -ano \| findstr <port>`. |
 | App connects, then `No demo event for 60s` on a video demo | The consent dialog is waiting on the device. |
 | `App reported: no widget with ValueKey("...")` | The key is missing or on the wrong widget (put it on the `IconButton`, not the `Icon`), or a dialog covers the screen — reset in `onPrepare`. |
 | `App reported: type_text: no text field has focus` | Tap the field first (`tap` step on its key) or give it `autofocus`. |
