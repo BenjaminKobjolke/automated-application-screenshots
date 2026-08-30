@@ -205,7 +205,54 @@ Output lands in `<output_dir>/demos/<demo_name>/`: `demo.gif`, `demo.mp4`,
 and one `<name>.png` per screenshot event. With `languages`, each run writes
 to `<output_dir>/demos/<demo_name>/<lang>/` instead.
 
-## 7. Compatibility checklist
+## 7. Network mode (mobile / Flutter)
+
+Apps without a Win32 window (Android/iOS Flutter apps) cannot be launched or
+captured by the tool. In network mode the roles flip: the **tool listens**
+(`"network": {"port": 8765}` instead of `launch`), the app on the phone or
+emulator **connects** over the LAN, plays the demo, **records the video
+itself** (native screen recording, one mp4 per demo) and captures stills
+in-app; the tool receives both and exports into the usual output layout, so
+`compose` keeps working. The tool sends a `start` command per demo, one
+connection serves the whole run.
+
+Tool → app (one JSON line):
+
+```json
+{"command": "start", "demo": 1, "video": true, "pixel_ratio": 1.0,
+ "settings": {"api_base_url": "https://demo.example"}, "language": "de",
+ "texts": {"price": "Preis"}, "steps": []}
+```
+
+- `video` is derived from the demo's `formats`: `["png"]` = stills only (no
+  recording, no consent dialog); `gif`/`mp4` = record. The GIF is made on the
+  PC from the uploaded mp4.
+- `steps` (optional, may be empty) lets the config script the demo instead of
+  a demo registered in the app: `tap(key)`, `type_text(text, char_delay_ms)`,
+  `pause(seconds)`, `screenshot(name)`, `custom(name)`; `{placeholder}` in
+  `type_text` is filled from `texts`.
+
+App → tool:
+
+```json
+{"event": "demo_started", "demo": 1}
+{"event": "screenshot", "name": "home", "png": "<base64 PNG>"}
+{"event": "demo_ended", "demo": 1}
+{"event": "video", "demo": 1, "size": 1834022}
+{"event": "error", "message": "unknown demo 7"}
+```
+
+`video` is followed by exactly `size` raw mp4 bytes; `hwnd` is not used.
+Timeouts are the launch-mode ones (30 s to connect, 60 s between events,
+300 s per demo). Android 14+ shows a system consent dialog before each video
+demo - one tap on the phone per demo.
+
+Flutter apps use the ready-made connector
+(`D:\GIT\BenjaminKobjolke\automated-application-screenshots-flutter-connector`):
+wrap `MaterialApp` in `AutomationDemoHost`, register demos, run with
+`--dart-define=AUTOMATION_HOST=<pc ip>:<port>`. Step by step: [MOBILE.md](MOBILE.md).
+
+## 8. Compatibility checklist
 
 - [ ] `--automation-demo <id>` plays the demo and exits on its own
 - [ ] Works without `--automation-demo-port` (manual run, no crash)

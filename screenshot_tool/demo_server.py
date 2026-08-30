@@ -1,17 +1,21 @@
-"""Localhost TCP server receiving demo lifecycle events from the target app.
+"""TCP server receiving demo lifecycle events from the target app.
 
 Protocol (see docs/AUTOMATION_INTERFACE.md): the app connects and sends one
-JSON object per newline-terminated UTF-8 line, client -> server only:
-``demo_started``, ``screenshot`` (named still request), ``demo_ended``.
+JSON object per newline-terminated UTF-8 line: ``demo_started``,
+``screenshot`` (named still request), ``demo_ended``. Network mode adds the
+tool -> app ``start`` command, inline PNG stills, ``error``, and ``video`` (a
+JSON header followed by that many raw mp4 bytes).
 """
 
+import base64
 import json
 import socket
 from dataclasses import dataclass
+from typing import Any
 
 from .app_logger import AppLogger
 
-KNOWN_EVENTS = ("demo_started", "screenshot", "demo_ended")
+KNOWN_EVENTS = ("demo_started", "screenshot", "demo_ended", "video", "error")
 
 
 @dataclass(frozen=True)
@@ -22,6 +26,11 @@ class DemoEvent:
     demo: int | None
     name: str | None
     hwnd: int | None
+    # Network mode: the still itself (the phone has no window to capture)
+    png: bytes | None = None
+    # Network mode: byte count of the mp4 that follows a ``video`` header
+    size: int | None = None
+    message: str | None = None
 
 
 def parse_event_line(line: str) -> DemoEvent:
@@ -41,14 +50,17 @@ def parse_event_line(line: str) -> DemoEvent:
         demo=data.get("demo"),
         name=data.get("name"),
         hwnd=data.get("hwnd"),
+        png=base64.b64decode(data["png"]) if isinstance(data.get("png"), str) else None,
+        size=data.get("size"),
+        message=data.get("message"),
     )
 
 
 class DemoServer:
     """Accepts one app connection and yields its events with timeouts."""
 
-    def __init__(self) -> None:
-        self._server = socket.create_server(("127.0.0.1", 0))
+    def __init__(self, host: str = "127.0.0.1", port: int = 0) -> None:
+        self._server = socket.create_server((host, port))
         self._conn: socket.socket | None = None
         self._buffer = b""
 
@@ -99,6 +111,29 @@ class DemoServer:
             if not chunk:
                 raise ConnectionError("demo app closed the event connection")
             self._buffer += chunk
+
+    def send(self, payload: dict[str, Any]) -> None:
+        """Send one JSON line to the app (network mode commands)."""
+        assert self._conn is not None, "send() before accept()"
+        self._conn.sendall(json.dumps(payload).encode("utf-8") + b"\n")
+
+    def read_exact(self, size: int, timeout: float) -> bytes:
+        """Read ``size`` raw bytes that follow a ``video`` header.
+
+        Raises:
+            ConnectionError: If the app disconnected mid-transfer.
+            TimeoutError: If no bytes arrive for ``timeout`` seconds.
+        """
+        assert self._conn is not None, "read_exact() before accept()"
+        self._conn.settimeout(timeout)
+        # Line reads may already have pulled the start of the blob in
+        data, self._buffer = self._buffer[:size], self._buffer[size:]
+        while len(data) < size:
+            chunk = self._conn.recv(min(65536, size - len(data)))
+            if not chunk:
+                raise ConnectionError("demo app closed the connection mid-video")
+            data += chunk
+        return data
 
     def close(self) -> None:
         if self._conn is not None:

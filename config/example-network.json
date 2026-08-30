@@ -1,0 +1,28 @@
+{
+  "output_dir": "../output/example-mobile",
+  "texts_dir": "../config/example-texts",
+
+  "network": { "port": 8765 },
+
+  "demos": [
+    {
+      "id": 1,
+      "name": "overview",
+      "formats": ["gif", "mp4"],
+      "fps": 10,
+      "pixel_ratio": 1.0,
+      "app_settings": { "api_base_url": "https://demo.example" },
+      "languages": ["en", "de"]
+    },
+    {
+      "id": 2,
+      "name": "settings",
+      "formats": ["png"],
+      "steps": [
+        { "type": "tap", "key": "settings_button" },
+        { "type": "pause", "seconds": 0.5 },
+        { "type": "screenshot", "name": "settings" }
+      ]
+    }
+  ]
+}

@@ -29,3 +29,22 @@ def test_parse_demo_ended():
 def test_garbage_raises_value_error(line):
     with pytest.raises(ValueError):
         parse_event_line(line)
+
+
+# --- network mode events ---------------------------------------------------
+
+
+def test_parse_screenshot_with_inline_png_decodes_base64():
+    event = parse_event_line('{"event": "screenshot", "name": "home", "png": "aGVsbG8="}')
+    assert event.name == "home"
+    assert event.png == b"hello"
+
+
+def test_parse_video_header_carries_size():
+    event = parse_event_line('{"event": "video", "demo": 1, "size": 1234}')
+    assert event.event == "video" and event.demo == 1 and event.size == 1234
+
+
+def test_parse_error_carries_message():
+    event = parse_event_line('{"event": "error", "message": "unknown demo 7"}')
+    assert event.event == "error" and event.message == "unknown demo 7"

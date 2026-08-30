@@ -1,7 +1,8 @@
 """Configuration for the screenshot tool, loaded from a JSON config file.
 
 A config may define a language-screenshot flow (``languages`` + dropdown keys),
-animated demos (``launch`` + ``demos``), or both.
+animated demos (``launch`` + ``demos``), network-mode demos (``network`` +
+``demos``, the app runs on a phone and records itself), or a mix.
 """
 
 import json
@@ -12,9 +13,14 @@ from typing import Any, NoReturn
 
 DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "config" / "keyboard-layout-watcher.json"
 
-_ALWAYS_REQUIRED = ["process_name", "title_substring", "output_dir"]
+_ALWAYS_REQUIRED = ["output_dir"]
+# Only modes that find or record a native window need to know which one.
+_WINDOW_KEYS = ["process_name", "title_substring"]
 _LANGUAGE_KEYS = ["dropdown_relative_pos", "screenshot_filename", "delay_after_change", "languages"]
-_VALID_FORMATS = ("gif", "mp4")
+# "png" = stills only. In network mode it also means "do not record video"
+# (no screen-recording consent prompt on the phone).
+_VALID_FORMATS = ("gif", "mp4", "png")
+DEFAULT_PIXEL_RATIO = 1.0
 
 
 @dataclass(frozen=True)
@@ -33,6 +39,16 @@ class LaunchSettings:
     inherit_env: bool = False
     # Clear the desktop before the app starts; see WindowFinder.minimize_all.
     minimize_all: bool = True
+
+
+@dataclass(frozen=True)
+class NetworkSettings:
+    """Network demo mode: the tool listens, a phone/emulator app connects.
+
+    The app records video itself and uploads it; nothing is launched here.
+    """
+
+    port: int
 
 
 @dataclass(frozen=True)
@@ -82,6 +98,16 @@ class DemoSpec:
     # per-language wording, caption the single-language case.
     caption: str | None = None
     captions: tuple[tuple[str, str], ...] = ()
+    # Network mode: device pixel ratio for in-app stills (1.0 = logical pixels).
+    pixel_ratio: float = DEFAULT_PIXEL_RATIO
+    # Network mode: steps sent to the app verbatim instead of a demo registered
+    # in the app (see the connector's docs/WRITING_DEMOS.md for the shape).
+    steps: tuple[dict[str, Any], ...] = ()
+
+    @property
+    def wants_video(self) -> bool:
+        """Whether a network-mode app must screen-record this demo."""
+        return "gif" in self.formats or "mp4" in self.formats
 
     @property
     def short_name(self) -> str:
@@ -92,7 +118,9 @@ class DemoSpec:
         {short} in a compose output keeps those filenames.
         """
         prefix = f"{self.group}-"
-        return self.name[len(prefix):] if self.group and self.name.startswith(prefix) else self.name
+        return (
+            self.name[len(prefix) :] if self.group and self.name.startswith(prefix) else self.name
+        )
 
     def caption_for(self, language: str | None) -> str | None:
         """This demo's caption in ``language``, falling back to ``caption``."""
@@ -279,6 +307,7 @@ class Settings:
     delay_after_change: float | None = None
     language_names: dict[str, str] | None = None
     launch: LaunchSettings | None = None
+    network: NetworkSettings | None = None
     demos: tuple[DemoSpec, ...] = ()
     compose: tuple[ComposeStep, ...] = ()
     # Folder with per-language demo text files (<texts_dir>/<lang>.json)
@@ -378,6 +407,11 @@ def _parse_demo(config_path: Path, data: dict) -> DemoSpec:
         _fail(
             config_path, f"demo '{data['name']}' crop must be an object with top/right/bottom/left"
         )
+    raw_steps = data.get("steps", [])
+    if not isinstance(raw_steps, list) or not all(
+        isinstance(s, dict) and isinstance(s.get("type"), str) for s in raw_steps
+    ):
+        _fail(config_path, f"demo '{data['name']}' steps must be a list of objects with a 'type'")
     crop = (
         max(0, int(raw_crop.get("top", 0))),
         max(0, int(raw_crop.get("right", 0))),
@@ -398,18 +432,28 @@ def _parse_demo(config_path: Path, data: dict) -> DemoSpec:
         group=data.get("group"),
         caption=data.get("caption"),
         captions=tuple((str(k), str(v)) for k, v in raw_captions.items()),
+        pixel_ratio=float(data.get("pixel_ratio", DEFAULT_PIXEL_RATIO)),
+        steps=tuple(raw_steps),
     )
+
+
+def _parse_network(config_path: Path, data: dict) -> NetworkSettings:
+    if not isinstance(data, dict) or not isinstance(data.get("port"), int):
+        _fail(config_path, "network.port must be an integer")
+    return NetworkSettings(port=data["port"])
 
 
 def _parse_demo_section(
     config_path: Path, data: dict
-) -> tuple[LaunchSettings | None, tuple[DemoSpec, ...]]:
+) -> tuple[LaunchSettings | None, NetworkSettings | None, tuple[DemoSpec, ...]]:
     if "demos" not in data:
-        return None, ()
-    if "launch" not in data:
-        _fail(config_path, "'demos' requires a 'launch' section")
-    launch = _parse_launch(config_path, data["launch"])
+        return None, None, ()
+    if ("launch" in data) == ("network" in data):
+        _fail(config_path, "'demos' requires exactly one of a 'launch' or a 'network' section")
     demos = tuple(_parse_demo(config_path, d) for d in data["demos"])
+    if "network" in data:
+        return None, _parse_network(config_path, data["network"]), demos
+    launch = _parse_launch(config_path, data["launch"])
 
     # A {width}/{height} placeholder in the command needs a size on every demo
     command_text = " ".join(launch.command)
@@ -422,7 +466,7 @@ def _parse_demo_section(
                     f"launch.command uses {placeholder} but demo(s) missing '{attr}': "
                     f"{', '.join(unsized)}",
                 )
-    return launch, demos
+    return launch, None, demos
 
 
 def build_launch_command(
@@ -484,13 +528,15 @@ def load_config(path: str | Path | None = None) -> Settings:
         raise SystemExit(f"ERROR: Invalid JSON in {config_path}: {e}")
 
     required = list(_ALWAYS_REQUIRED)
+    if "languages" in data or "launch" in data:
+        required += _WINDOW_KEYS
     if "languages" in data:
         required += _LANGUAGE_KEYS
     missing = [key for key in required if key not in data]
     if missing:
         raise SystemExit(f"ERROR: Config {config_path} is missing keys: {', '.join(missing)}")
 
-    launch, demos = _parse_demo_section(config_path, data)
+    launch, network, demos = _parse_demo_section(config_path, data)
     compose = _parse_compose(config_path, data, demos)
 
     # A relative output_dir is relative to the config file, not to wherever the
@@ -506,14 +552,15 @@ def load_config(path: str | Path | None = None) -> Settings:
     has_languages = "languages" in data
     pos = data.get("dropdown_relative_pos")
     settings = Settings(
-        process_name=data["process_name"],
-        title_substring=data["title_substring"],
+        process_name=data.get("process_name", ""),
+        title_substring=data.get("title_substring", ""),
         output_dir=str(output_dir),
         dropdown_relative_pos=(int(pos[0]), int(pos[1])) if has_languages else None,
         screenshot_filename=data.get("screenshot_filename"),
         delay_after_change=float(data["delay_after_change"]) if has_languages else None,
         language_names=data.get("languages"),
         launch=launch,
+        network=network,
         demos=demos,
         compose=compose,
         texts_dir=texts_dir,

@@ -16,6 +16,7 @@ The target application is defined by a JSON config file — either in `config/` 
 | write the config | [docs/CONFIG.md](docs/CONFIG.md) — every key, plus `config/example-full.json` |
 | make my app recordable | [docs/AUTOMATION_INTERFACE.md](docs/AUTOMATION_INTERFACE.md), or the [connector library](../automated-application-screenshots-python-connector) for Python apps |
 | write the demo scripts | the connector's `docs/WRITING_DEMOS.md` |
+| record a mobile (Flutter) app | [docs/MOBILE.md](docs/MOBILE.md) — network mode: phone records, PC exports |
 | get a clean, repeatable recording | [docs/RECORDING_ENVIRONMENT.md](docs/RECORDING_ENVIRONMENT.md) |
 | put the result in a README | [docs/PUBLISHING.md](docs/PUBLISHING.md) |
 | see what one config does | `screenshot-tool --config app.json --list` |
@@ -123,6 +124,10 @@ burns each caption over the start of its chapter. `max_size` states how big an
 artifact may be and `fit` which settings may be traded away to get there — at
 most three encodes, keeping the best quality that fits. Details:
 [docs/CONFIG.md](docs/CONFIG.md#compose-array-optional).
+
+### Mobile / Flutter apps (network mode)
+
+Apps without a desktop window run on a phone or emulator, connect to the tool over the LAN, record their own video and send stills in-app: replace `launch` with `"network": {"port": 8765}`, start `--demo all` on the PC, then the app with `--dart-define=AUTOMATION_HOST=<pc ip>:8765`. Output layout is unchanged. Step by step: [docs/MOBILE.md](docs/MOBILE.md).
 
 ### Multi-language demos
 

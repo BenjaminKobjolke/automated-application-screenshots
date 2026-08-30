@@ -16,22 +16,27 @@ import psutil
 from . import config
 from .app_logger import AppLogger
 from .config import DemoSpec, LaunchSettings, build_launch_command, write_app_settings_file
+from .demo_common import (
+    ACCEPT_TIMEOUT_S,
+    DEMO_CAP_S,
+    EVENT_TIMEOUT_S,
+    _clear_stale_stills,
+    _run_label,
+    _run_verify,
+    run_all,
+    texts_file_for,
+)
 from .demo_server import DemoServer
 from .exporter import export_gif, export_mp4
+from .network_demo_cli import NetworkDemoCLI
 from .recorder import Recorder
 from .window_finder import WindowFinder
 
 WINDOW_TIMEOUT_S = 30.0
-ACCEPT_TIMEOUT_S = 30.0
-EVENT_TIMEOUT_S = 60.0
-DEMO_CAP_S = 300.0
 TAIL_S = 0.5
 EXIT_GRACE_S = 10.0
 
-
-def _run_label(demo: DemoSpec, language: str | None) -> str:
-    """Display name of one run: 'basic-math [de]', or just the name."""
-    return f"{demo.name} [{language}]" if language else demo.name
+__all__ = ["DemoCLI", "_run_label"]
 
 
 def _child_env(
@@ -56,35 +61,6 @@ def _child_env(
     for key, value in launch.env:
         env[key] = config.expand(value, demo, language)
     return env
-
-
-def _clear_stale_stills(out_dir: Path) -> None:
-    """Drop stills from a previous take of this demo.
-
-    A still is named after what it shows (a theme, a state). If that thing is
-    gone, its PNG would otherwise linger and end up in the next slideshow -
-    silently, because nothing else knows it should not be there.
-    """
-    for stale in out_dir.glob("*.png"):
-        stale.unlink()
-
-
-def _run_verify(demo: DemoSpec, language: str | None) -> bool:
-    """Check the demo's side effects; False (and a reason) if one is missing."""
-    ok = True
-    for check in demo.verify:
-        path = Path(config.expand(check.path, demo, language))
-        if not path.is_file():
-            AppLogger.error(f"Verify failed: {check.describe()} - no such file")
-            ok = False
-        elif check.kind == "contains":
-            content = path.read_text(encoding="utf-8", errors="replace")
-            if check.text is not None and check.text not in content:
-                AppLogger.error(f"Verify failed: {check.describe()}")
-                ok = False
-    if demo.verify and ok:
-        AppLogger.info(f"Verified {len(demo.verify)} side effect(s).")
-    return ok
 
 
 class DemoCLI:
@@ -118,14 +94,10 @@ class DemoCLI:
                 AppLogger.error(f"No demo with id {demo_id} (available: {available})")
                 return 1
 
-        # A demo without languages is one run; with languages, one run per language
-        runs = [(demo, lang) for demo in demos for lang in (demo.languages or (None,))]
-        failed = [_run_label(demo, lang) for demo, lang in runs if not self._run_demo(demo, lang)]
-        AppLogger.info(f"\n{'=' * 50}")
-        AppLogger.info(f"Demos complete: {len(runs) - len(failed)}/{len(runs)} succeeded")
-        for name in failed:
-            AppLogger.info(f"  FAILED: {name}")
-        return 0 if not failed else 1
+        if settings.network is not None:
+            # Phone app: it connects to us and records itself
+            return NetworkDemoCLI(DemoServer("0.0.0.0", settings.network.port)).run(demos)
+        return run_all(demos, self._run_demo)
 
     def _run_demo(self, demo: DemoSpec, language: str | None = None) -> bool:
         launch = config.settings.launch
@@ -135,15 +107,11 @@ class DemoCLI:
             out_dir = out_dir / language
         AppLogger.info(f"\n--- Demo {demo.id} '{_run_label(demo, language)}' ---")
 
-        texts_file: Path | None = None
-        if language and config.settings.texts_dir:
-            # Absolute: the app may run with a different cwd (launch.cwd)
-            texts_file = (Path(config.settings.texts_dir) / f"{language}.json").resolve()
-            if not texts_file.is_file():
-                AppLogger.error(
-                    f"Texts file missing for '{_run_label(demo, language)}': {texts_file}"
-                )
-                return False
+        try:
+            texts_file = texts_file_for(demo, language)
+        except FileNotFoundError as e:
+            AppLogger.error(str(e))
+            return False
 
         server = DemoServer()
         settings_file = write_app_settings_file(demo, Path(tempfile.gettempdir()))

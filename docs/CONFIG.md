@@ -7,7 +7,7 @@ A config can define either or both modes:
 - **Language screenshots** — requires the `languages` section (plus the dropdown keys below).
 - **Demo recordings** — requires the `demos` + `launch` sections (see [AUTOMATION_INTERFACE.md](AUTOMATION_INTERFACE.md) for the app-side contract).
 
-Always required: `process_name`, `title_substring`, `output_dir`. A missing file, invalid JSON, or missing required key aborts with a clear error message.
+Always required: `output_dir`. `process_name` and `title_substring` are required in language mode and launch (demo) mode; network mode has no window to find. A missing file, invalid JSON, or missing required key aborts with a clear error message.
 
 ## Example: language screenshots
 
@@ -95,6 +95,14 @@ How to start the target application.
 - `inherit_env` (boolean, default `false`) — keep the tool's own environment. By default the tool **removes its own virtualenv** from the child's `PATH`: it runs under `uv`, whose venv is first on `PATH` and holds none of the recorded app's dependencies, so an app launched through a plain `python` would otherwise fail to import itself.
 - `minimize_all` (boolean, default `true`) — clear the desktop before the app starts. Capture reads screen *pixels* at the window's rect, so anything drawn over it is burned into every frame — including the console the tool itself spawns — and a semi-transparent window shows whatever is behind it. See [RECORDING_ENVIRONMENT.md](RECORDING_ENVIRONMENT.md).
 
+### `network` (object, demo mode)
+
+Alternative to `launch` for apps without a desktop window (mobile Flutter apps, see [AUTOMATION_INTERFACE.md](AUTOMATION_INTERFACE.md) section 7). The tool listens on `port` (all interfaces), the app on the phone connects, records its own video and captures stills in-app. `demos` needs exactly one of `launch` or `network`.
+
+- `port` (integer) — TCP port to listen on, e.g. `8765`.
+
+In network mode `fps` only drives the GIF derived from the uploaded mp4 (the device encoder decides the video frame rate), `width`/`height`/`crop` are unused, and two extra demo keys apply: `pixel_ratio` and `steps` (below). Example: `config/example-network.json`.
+
 ### `texts_dir` (string, demo mode, optional)
 
 Folder with one demo-text JSON file per language, named `<lang>.json` (like an app's `locales/` folder), resolved against the current working directory. On a language run the tool passes `<texts_dir>/<lang>.json` to the app as `--automation-demo-texts <path>`; the app fills `{placeholder}`s in its demo scripts from it (connector: `localize_script`, requires connector >= 0.4.0). A missing file fails that run with a clear error. Ignored for runs without a language.
@@ -112,7 +120,9 @@ One entry per recordable demo:
 - `id` (integer) — passed to the app as `--automation-demo <id>`; selects which app-side demo script runs. **Need not be unique** — several entries may share an `id` to record the same app-side demo at different sizes/settings (see [Variants](#variants-of-one-demo-eg-landscape--portrait)). `--demo all` records every entry; `--demo <id>` records every entry with that id.
 - `name` (string) — output subfolder name. Must be distinct per entry (it, not `id`, keys the output folder), so same-`id` variants need different names.
 - `fps` (integer, default 10) — capture frame rate; ~10 is the realistic ceiling.
-- `formats` (array of `"gif"`/`"mp4"`, default `["gif"]`) — exports to produce.
+- `formats` (array of `"gif"`/`"mp4"`/`"png"`, default `["gif"]`) — exports to produce. `"png"` means stills only; in network mode it also tells the app not to screen-record (no consent prompt on the phone).
+- `pixel_ratio` (number, default `1.0`, network mode) — device pixel ratio for in-app stills; `1.0` = logical pixels, `2.0` = twice the size.
+- `steps` (array of objects, network mode, optional) — demo steps sent to the app verbatim instead of a demo registered in the app: `{"type": "tap", "key": "settings_button"}`, `{"type": "type_text", "text": "{price}", "char_delay_ms": 60}`, `{"type": "pause", "seconds": 1}`, `{"type": "screenshot", "name": "settings"}`, `{"type": "custom", "name": "back"}`. Each entry needs a string `type`.
 - `width` / `height` (integers, optional) — window size the app must adopt. Recordings contain physical pixels: on a 150 % scaled display, 640×420 records as 960×630. The tool moves the window into the monitor's work area before recording, so the taskbar never appears in the capture — unless the window (in physical pixels) is larger than the work area itself; then the tool logs a warning and the fix is a smaller `width`/`height`.
 - `app_settings` (object, optional) — opaque app-specific settings. The tool writes them to a temp JSON file and passes it as a single `--automation-demo-settings <path>` (deleted after the run). The key dialect is the app's own (FastCalculator: QSettings keys). Anything the app reads **at startup** can go here — e.g. a full color theme is just the set of keys the app loads on launch, so a themed demo is fully reproducible from the config, no runtime commands needed.
 - `crop` (object, optional) — pixels removed from each captured frame: `{"top", "right", "bottom", "left"}` (any subset, default 0). The tool already captures the window's real visible bounds (`DwmGetWindowAttribute` extended frame bounds) clamped to the monitor work area, so the invisible resize border and the taskbar never appear; use `crop` only for residual trimming (e.g. a rounded-corner pixel or a themed 1px edge). Applied in physical pixels, identically to every frame. MP4 export pads an odd resulting side by 1px (x264 needs even dimensions).

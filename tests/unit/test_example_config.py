@@ -10,6 +10,7 @@ from pathlib import Path
 from screenshot_tool import config
 
 EXAMPLE = Path(__file__).resolve().parents[2] / "config" / "example-full.json"
+NETWORK_EXAMPLE = EXAMPLE.with_name("example-network.json")
 
 
 def test_the_example_config_loads():
@@ -39,3 +40,11 @@ def test_every_compose_type_is_covered():
     # A new step type without an example is a type nobody will discover.
     settings = config.load_config(EXAMPLE)
     assert set(config._COMPOSE_TYPES) == {s.type for s in settings.compose}
+
+
+def test_the_network_example_loads():
+    settings = config.load_config(NETWORK_EXAMPLE)
+    assert settings.network is not None and settings.launch is None
+    assert any(d.wants_video for d in settings.demos), "video demo"
+    assert any(not d.wants_video for d in settings.demos), "stills-only demo"
+    assert any(d.steps for d in settings.demos), "config-sent steps"

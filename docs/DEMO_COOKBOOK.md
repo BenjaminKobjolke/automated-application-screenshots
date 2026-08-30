@@ -129,3 +129,6 @@ line of its own. → [PUBLISHING.md](PUBLISHING.md)
 Anything the app suggests from your machine — recent paths, search results — is
 on screen. Seed the app's own history so it never falls back to yours.
 → [RECORDING_ENVIRONMENT.md](RECORDING_ENVIRONMENT.md#privacy)
+
+**Can I record a mobile app?** Yes — Flutter on Android, in network mode: the
+phone records itself and streams the result to the PC. → [MOBILE.md](MOBILE.md)
