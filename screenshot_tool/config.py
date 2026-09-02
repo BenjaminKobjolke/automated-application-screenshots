@@ -21,6 +21,10 @@ _LANGUAGE_KEYS = ["dropdown_relative_pos", "screenshot_filename", "delay_after_c
 # (no screen-recording consent prompt on the phone).
 _VALID_FORMATS = ("gif", "mp4", "png")
 DEFAULT_PIXEL_RATIO = 1.0
+# Default seconds to wait for a network-mode app to connect. Lives here, not
+# in demo_common, because NetworkSettings defaults to it and demo_common
+# imports config. demo_common re-exports it for the launch-mode runner.
+ACCEPT_TIMEOUT_S = 30.0
 
 
 @dataclass(frozen=True)
@@ -49,6 +53,11 @@ class NetworkSettings:
     """
 
     port: int
+
+    # How long to wait for the app to connect. The default suits a device that
+    # is already up; a run that first boots an emulator and builds the app
+    # needs minutes, so those configs raise it.
+    accept_timeout: float = ACCEPT_TIMEOUT_S
 
 
 @dataclass(frozen=True)
@@ -440,7 +449,11 @@ def _parse_demo(config_path: Path, data: dict) -> DemoSpec:
 def _parse_network(config_path: Path, data: dict) -> NetworkSettings:
     if not isinstance(data, dict) or not isinstance(data.get("port"), int):
         _fail(config_path, "network.port must be an integer")
-    return NetworkSettings(port=data["port"])
+    timeout = data.get("accept_timeout", ACCEPT_TIMEOUT_S)
+    # bool is an int subclass, and True as a timeout is a config typo, not 1 s.
+    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or timeout <= 0:
+        _fail(config_path, "network.accept_timeout must be a positive number of seconds")
+    return NetworkSettings(port=data["port"], accept_timeout=float(timeout))
 
 
 def _parse_demo_section(

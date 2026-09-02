@@ -68,3 +68,23 @@ def test_launch_mode_still_requires_process_name(tmp_path):
     data = {"output_dir": "x", "launch": {"command": ["app"]}, "demos": [{"id": 1, "name": "a"}]}
     with pytest.raises(SystemExit, match="process_name"):
         config.load_config(write(tmp_path, data))
+
+
+def test_accept_timeout_defaults_to_the_shared_constant(tmp_path):
+    settings = config.load_config(write(tmp_path, NETWORK))
+    assert settings.network.accept_timeout == config.ACCEPT_TIMEOUT_S
+
+
+def test_accept_timeout_is_read_from_the_network_section(tmp_path):
+    data = json.loads(json.dumps(NETWORK))
+    data["network"]["accept_timeout"] = 300
+    settings = config.load_config(write(tmp_path, data))
+    assert settings.network.accept_timeout == 300.0
+
+
+@pytest.mark.parametrize("bad", [0, -1, "300", True, None])
+def test_accept_timeout_must_be_a_positive_number(tmp_path, bad):
+    data = json.loads(json.dumps(NETWORK))
+    data["network"]["accept_timeout"] = bad
+    with pytest.raises(SystemExit, match="accept_timeout"):
+        config.load_config(write(tmp_path, data))

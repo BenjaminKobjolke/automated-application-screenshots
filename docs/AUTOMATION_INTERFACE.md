@@ -85,7 +85,8 @@ One JSON object per newline-terminated UTF-8 line, client (app) → server
 - `screenshot.name` becomes the still's filename (`<name>.png`) — keep it
   filesystem-friendly and unique within the demo.
 - Recording runs from `demo_started` to `demo_ended` (plus a short tail).
-- Tool-side timeouts: 30 s to connect, 60 s max between events, 300 s per demo.
+- Tool-side timeouts: connect is `network.accept_timeout` (default 30 s),
+  then 60 s max between events, 300 s per demo.
   On violation the tool stops, still exports the partial recording, and exits 1.
 
 ## 4. Python apps: use the connector library

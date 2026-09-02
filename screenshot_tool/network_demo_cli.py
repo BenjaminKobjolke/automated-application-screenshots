@@ -33,8 +33,11 @@ GIF_NAME = "demo.gif"
 class NetworkDemoCLI:
     """Runs demos against one app connection held open for the whole batch."""
 
-    def __init__(self, server: DemoServer) -> None:
+    def __init__(
+        self, server: DemoServer, accept_timeout: float = ACCEPT_TIMEOUT_S
+    ) -> None:
         self._server = server
+        self._accept_timeout = accept_timeout
 
     def run(self, demos: tuple[DemoSpec, ...]) -> int:
         """Wait for the app once, then run every selected demo over that link.
@@ -43,11 +46,12 @@ class NetworkDemoCLI:
             Exit code (0 when every run succeeded).
         """
         AppLogger.info(
-            f"Listening on port {self._server.port}; start the app with "
+            f"Listening on port {self._server.port} for {self._accept_timeout:.0f}s; "
+            f"start the app with "
             f"--dart-define=AUTOMATION_HOST=<this pc ip>:{self._server.port}"
         )
         try:
-            if not self._server.accept(timeout=ACCEPT_TIMEOUT_S):
+            if not self._server.accept(timeout=self._accept_timeout):
                 AppLogger.error("App never connected to the demo port.")
                 return 1
             AppLogger.info("App connected.")

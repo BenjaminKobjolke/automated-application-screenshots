@@ -23,6 +23,7 @@ from .demo_common import (
     _clear_stale_stills,
     _run_label,
     _run_verify,
+    output_dir_for,
     run_all,
     texts_file_for,
 )
@@ -96,15 +97,16 @@ class DemoCLI:
 
         if settings.network is not None:
             # Phone app: it connects to us and records itself
-            return NetworkDemoCLI(DemoServer("0.0.0.0", settings.network.port)).run(demos)
+            return NetworkDemoCLI(
+                DemoServer("0.0.0.0", settings.network.port),
+                accept_timeout=settings.network.accept_timeout,
+            ).run(demos)
         return run_all(demos, self._run_demo)
 
     def _run_demo(self, demo: DemoSpec, language: str | None = None) -> bool:
         launch = config.settings.launch
         assert launch is not None  # config validation guarantees this
-        out_dir = Path(config.settings.output_dir) / "demos" / demo.name
-        if language:
-            out_dir = out_dir / language
+        out_dir = output_dir_for(demo, language)
         AppLogger.info(f"\n--- Demo {demo.id} '{_run_label(demo, language)}' ---")
 
         try:

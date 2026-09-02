@@ -64,8 +64,8 @@ recording, no consent prompt.
 
 ```json
 {
-  "output_dir": "../../output/demos",
-  "network": { "port": 8765 },
+  "output_dir": "../../output",
+  "network": { "port": 8765, "accept_timeout": 300 },
   "demos": [
     { "id": 1, "name": "overview", "formats": ["gif", "mp4"], "fps": 10,
       "app_settings": { "api_base_url": "https://demo.example", "code": "DEMO" } },
@@ -98,11 +98,13 @@ and the PC's firewall must allow inbound TCP on the configured port — a networ
 Windows classifies as *Public* drops the device's connection silently, and
 neither side logs it.
 
-Either side may be started first: the tool waits 30 s for the app, and the app
-(from connector 0.1.0 on) retries for 3 minutes, which comfortably covers a
-`fvm flutter run` build and install.
+Either side may be started first: the tool waits `network.accept_timeout`
+seconds for the app (default 30 s), and the app (from connector 0.1.0 on)
+retries for 3 minutes, which comfortably covers a `fvm flutter run` build and
+install.
 
-1. **PC** — start the tool; it listens and waits up to 30 s for the app:
+1. **PC** — start the tool; it listens and waits `network.accept_timeout`
+   seconds (default 30 s) for the app:
 
    ```
    uv run screenshot-tool --config path/to/app-demos.json --demo all
@@ -128,9 +130,12 @@ Either side may be started first: the tool waits 30 s for the app, and the app
    `<still>.png` per screenshot step.
 
 One connection serves the whole `--demo all` run; the app stays open between
-demos. Timeouts are the desktop ones: 30 s to accept the app's connection, 60 s
-between events, 300 s per demo. The 30 s is the *tool's* window only — the app
-keeps retrying on its side, so a tool started second is still picked up. A failed step (missing key, no focused field, unknown custom
+demos. `network.accept_timeout` sets how long the tool waits to accept the
+app's connection (default 30 s); raise it when the run first boots an emulator
+and builds the app, which takes minutes. That window is the *tool's* only — the
+app keeps retrying on its side, so a tool started second is still picked up. The
+other timeouts are the desktop ones: 60 s between events, 300 s per demo. A
+failed step (missing key, no focused field, unknown custom
 action) arrives as an `error` event and fails that run with the reason.
 
 ## 4. Troubleshooting

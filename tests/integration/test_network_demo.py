@@ -107,12 +107,23 @@ def test_network_run_writes_stills_video_and_gif(tmp_path, monkeypatch):
 
 
 def test_demo_cli_dispatches_to_network_mode(tmp_path, monkeypatch):
-    data = {"output_dir": str(tmp_path), "network": {"port": 0}, "demos": [{"id": 1, "name": "a"}]}
+    data = {
+        "output_dir": str(tmp_path),
+        "network": {"port": 0, "accept_timeout": 300},
+        "demos": [{"id": 1, "name": "a"}],
+    }
     cfg = tmp_path / "app.json"
     cfg.write_text(json.dumps(data), encoding="utf-8")
     config.load_config(cfg)
+    seen = {}
     monkeypatch.setattr(
         NetworkDemoCLI, "run", lambda self, demos: 0 if [d.id for d in demos] == [1] else 1
     )
-    monkeypatch.setattr(NetworkDemoCLI, "__init__", lambda self, server: None)
+    monkeypatch.setattr(
+        NetworkDemoCLI,
+        "__init__",
+        lambda self, server, accept_timeout: seen.update(accept_timeout=accept_timeout),
+    )
     assert DemoCLI().run("all") == 0
+    # The configured window must reach the runner, not the 30 s default.
+    assert seen["accept_timeout"] == 300.0
