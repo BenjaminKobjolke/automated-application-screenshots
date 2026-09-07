@@ -286,4 +286,5 @@ sequential, so there is no collision.)
 
 1. Make the app implement the automation contract — Python apps use the [automated-screenshot-connector](https://github.com/BenjaminKobjolke/automated-application-screenshots-python-connector) library; the full contract is in [AUTOMATION_INTERFACE.md](AUTOMATION_INTERFACE.md).
 2. Write a config with `launch` + `demos` (see the FastCalculator example above), ideally in the app's repo next to a runner `.bat`.
-3. Run: `uv run screenshot-tool --config path/to/your-app.json --demo all`
+3. Copy [`templates/create_demos.bat`](../templates/create_demos.bat) next to that config and point its `CONFIG` at it — that is the runner every app ends up writing anyway: one demo or all (`create_demos.bat 1`), the tool found as a sibling checkout or via `SCREENSHOT_TOOL_DIR`, and a readable error instead of a uv stack trace when it is neither.
+4. Run: `tools\create_media\create_demos.bat` (or `uv run --project <tool-dir> screenshot-tool --config path/to/your-app.json --demo all`)

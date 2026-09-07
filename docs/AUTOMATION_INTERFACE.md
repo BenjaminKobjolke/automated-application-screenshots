@@ -60,7 +60,11 @@ Rules:
    still, `demo_ended` when done.
 6. **Quit yourself** about 1 second after `demo_ended` (the hold keeps the
    final state in the recording). The tool kills the process if it lingers
-   longer than 10 s.
+   longer than 10 s. Qt apps: end with `QCoreApplication.exit(0)`, not
+   `QApplication.quit()` — since Qt 6.5 `quit()` closes the windows first and any
+   window that ignores its close event (a confirm-on-close, an unsaved-changes
+   prompt, a guarded fullscreen window) cancels the quit, and the app is killed
+   instead. The Python connector's players already do this.
 
 ## 3. Socket protocol
 

@@ -1,6 +1,14 @@
 # Command Line Arguments
 
-Run via `uv run screenshot-tool [options]` (or `start.bat`).
+Run via `uv run screenshot-tool [options]` (or `start.bat`) **from this repo**.
+
+From another repo — which is where a consuming app's config and runner `.bat`
+live — the tool is reached with `uv run --project <tool-dir> screenshot-tool
+[options]`; that runs the tool in its own environment while the config path and
+the current directory stay the app's. The shipped
+[`templates/create_demos.bat`](../templates/create_demos.bat) does exactly this,
+taking `<tool-dir>` from the `SCREENSHOT_TOOL_DIR` environment variable and
+falling back to a checkout next to the app's repo.
 
 | Option | Argument | Description | Default |
 |---|---|---|---|
