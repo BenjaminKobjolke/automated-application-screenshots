@@ -216,3 +216,7 @@ HANDOFF.md
 # Remotion composer (tour rendering)
 composer/node_modules/
 composer/out/
+tickets/
+graphify-out/
+code_analysis_results/
+.reasonix/
