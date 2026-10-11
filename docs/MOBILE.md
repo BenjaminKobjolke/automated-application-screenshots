@@ -87,6 +87,8 @@ recording, no consent prompt.
 - `fps` only drives the derived GIF; the device encoder decides the video.
 - `width`/`height`/`crop` are unused — the recording is the device's native
   resolution. Use `compose` size fitting if files come out too big.
+- Phone recordings do not need the desktop FancyZones pause; set
+  `"pause_fancyzones": false` in the config if desired.
 
 Full key reference: [CONFIG.md](CONFIG.md); loadable example:
 `config/example-network.json`.

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import psutil
 
-from . import config
+from . import config, fancyzones
 from .app_logger import AppLogger
 from .config import DemoSpec, LaunchSettings, build_launch_command, write_app_settings_file
 from .demo_common import (
@@ -95,13 +95,14 @@ class DemoCLI:
                 AppLogger.error(f"No demo with id {demo_id} (available: {available})")
                 return 1
 
-        if settings.network is not None:
-            # Phone app: it connects to us and records itself
-            return NetworkDemoCLI(
-                DemoServer("0.0.0.0", settings.network.port),
-                accept_timeout=settings.network.accept_timeout,
-            ).run(demos)
-        return run_all(demos, self._run_demo)
+        with fancyzones.paused(settings.pause_fancyzones):
+            if settings.network is not None:
+                # Phone app: it connects to us and records itself
+                return NetworkDemoCLI(
+                    DemoServer("0.0.0.0", settings.network.port),
+                    accept_timeout=settings.network.accept_timeout,
+                ).run(demos)
+            return run_all(demos, self._run_demo)
 
     def _run_demo(self, demo: DemoSpec, language: str | None = None) -> bool:
         launch = config.settings.launch

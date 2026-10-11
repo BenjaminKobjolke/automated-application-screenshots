@@ -11,6 +11,31 @@ learned the expensive way.
 
 ## What the tool does for you
 
+### A window nobody else resizes
+
+On the workstation investigated on 2026-10-11, PowerToys FancyZones was moving
+the Companion window. Its **Move newly created windows to their last known
+zone** option was enabled, and its history contained that app's executable.
+FancyZones logged the zone-history lookup and move when the app started. The
+saved 2×2 zone measured about 1265×727 logical pixels at that display's 150%
+scaling, matching the oversized captures. FancyZones also checked the window
+again a few seconds later, which could race the app's own demo resize. It left
+alone a probe app with no saved zone and a resize that the app made itself.
+
+For every `--demo` run, the tool stops `PowerToys.FancyZones.exe` before
+launching the app or listening for a network-mode app. It restarts the process
+with its original command line when recording ends, including failures and
+Ctrl+C. It only restarts a process it stopped. The tray icon and other PowerToys
+modules remain running. Set `"pause_fancyzones": false` to opt out; this is
+useful for a phone recording, where no desktop window is being managed.
+
+There are three limits: force-killing the tool can leave FancyZones stopped;
+an elevated FancyZones process may refuse to stop; and in network mode the app
+must apply its recording size after it connects and receives `start`. The tool
+cannot protect app startup that happens before that point. As a manual
+alternative, add the recorded app executable to FancyZones' excluded apps and
+set `"pause_fancyzones": false`.
+
 ### A bare desktop
 
 Before launching the app, the tool minimizes every visible top-level window and

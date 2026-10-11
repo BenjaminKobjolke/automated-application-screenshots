@@ -77,6 +77,13 @@ Output root. Language mode: `<output_dir>/<language-code>/<screenshot_filename>`
 
 A **relative** path resolves against the folder holding the config file, not the current working directory — a config committed next to the app it records stays portable, and no config needs an absolute `D:/...` path.
 
+### `pause_fancyzones` (boolean, default `true`, demo mode)
+
+Pause PowerToys FancyZones during demo recordings so it cannot move or resize
+the target window. Set it to `false` to opt out, for example for phone
+recordings. The tool restores FancyZones afterward; the caller's batch file
+needs no changes. See [Recording environment](RECORDING_ENVIRONMENT.md#a-window-nobody-else-resizes).
+
 ### `screenshot_filename` (string, language mode)
 
 Filename of the screenshot saved inside each language subfolder, e.g. `"screenshot.png"`.

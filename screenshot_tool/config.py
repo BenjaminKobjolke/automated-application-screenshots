@@ -321,6 +321,7 @@ class Settings:
     compose: tuple[ComposeStep, ...] = ()
     # Folder with per-language demo text files (<texts_dir>/<lang>.json)
     texts_dir: str | None = None
+    pause_fancyzones: bool = True
     language_codes: list[str] = field(init=False)
     name_to_code: dict[str, str] = field(init=False)
 
@@ -561,6 +562,9 @@ def load_config(path: str | Path | None = None) -> Settings:
     texts_dir = data.get("texts_dir")
     if texts_dir is not None and not isinstance(texts_dir, str):
         raise SystemExit(f"ERROR: Config {config_path}: texts_dir must be a string")
+    pause_fancyzones = data.get("pause_fancyzones", True)
+    if not isinstance(pause_fancyzones, bool):
+        raise SystemExit(f"ERROR: Config {config_path}: pause_fancyzones must be a boolean")
 
     has_languages = "languages" in data
     pos = data.get("dropdown_relative_pos")
@@ -577,6 +581,7 @@ def load_config(path: str | Path | None = None) -> Settings:
         demos=demos,
         compose=compose,
         texts_dir=texts_dir,
+        pause_fancyzones=pause_fancyzones,
     )
     return settings
 

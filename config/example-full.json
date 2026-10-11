@@ -2,6 +2,7 @@
   "process_name": "python.exe",
   "title_substring": "Example App",
   "output_dir": "../output/example",
+  "pause_fancyzones": true,
   "texts_dir": "../config/example-texts",
 
   "dropdown_relative_pos": [175, 248],
