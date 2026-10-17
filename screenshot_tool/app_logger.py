@@ -6,6 +6,7 @@ be level-filtered or silenced from a single place.
 
 import logging
 import sys
+from typing import TextIO
 
 _LOGGER_NAME = "screenshot_tool"
 _DEFAULT_LEVEL = "INFO"
@@ -17,15 +18,21 @@ class AppLogger:
     _logger: logging.Logger | None = None
 
     @classmethod
-    def configure(cls, level: str = _DEFAULT_LEVEL) -> None:
+    def configure(cls, level: str = _DEFAULT_LEVEL, stream: TextIO = sys.stdout) -> None:
         """Initialise the underlying logger. Safe to call more than once."""
         logger = logging.getLogger(_LOGGER_NAME)
         logger.setLevel(getattr(logging, level.upper(), logging.INFO))
-        if not logger.handlers:
-            # stdout + plain messages: this is a CLI whose output IS the user interface
-            handler = logging.StreamHandler(sys.stdout)
+        handler = next(
+            (existing for existing in logger.handlers if isinstance(existing, logging.StreamHandler)),
+            None,
+        )
+        if handler is None:
+            # Plain messages keep the CLI output easy to read.
+            handler = logging.StreamHandler(stream)
             handler.setFormatter(logging.Formatter("%(message)s"))
             logger.addHandler(handler)
+        else:
+            handler.setStream(stream)
         cls._logger = logger
 
     @classmethod
