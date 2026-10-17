@@ -65,3 +65,27 @@ def test_next_event_times_out_on_silence():
     finally:
         conn.close()
         server.close()
+
+
+def test_reaccept_clears_previous_connection_and_partial_buffer():
+    server = DemoServer()
+    first = socket.create_connection(("127.0.0.1", server.port), timeout=5)
+    second = None
+    try:
+        assert server.accept(timeout=5)
+        first.sendall(b'{"event":"demo_started",')
+        assert server.next_event(timeout=0.1) is None
+        first.close()
+
+        second = socket.create_connection(("127.0.0.1", server.port), timeout=5)
+        second.sendall(b'{"event":"screenshot","name":"after-restart"}\n')
+        assert server.accept(timeout=5)
+        event = server.next_event(timeout=5)
+        assert event is not None
+        assert event.event == "screenshot"
+        assert event.name == "after-restart"
+    finally:
+        first.close()
+        if second is not None:
+            second.close()
+        server.close()

@@ -45,6 +45,7 @@ def test_every_compose_type_is_covered():
 def test_the_network_example_loads():
     settings = config.load_config(NETWORK_EXAMPLE)
     assert settings.network is not None and settings.launch is None
+    assert settings.live is not None and settings.live.target.value == "android_emulator"
     assert any(d.wants_video for d in settings.demos), "video demo"
     assert any(not d.wants_video for d in settings.demos), "stills-only demo"
     assert any(d.steps for d in settings.demos), "config-sent steps"

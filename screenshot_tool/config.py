@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, NoReturn
 
+from .live_config import LiveSettings, parse_live
+
 DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "config" / "keyboard-layout-watcher.json"
 
 _ALWAYS_REQUIRED = ["output_dir"]
@@ -317,6 +319,7 @@ class Settings:
     language_names: dict[str, str] | None = None
     launch: LaunchSettings | None = None
     network: NetworkSettings | None = None
+    live: LiveSettings | None = None
     demos: tuple[DemoSpec, ...] = ()
     compose: tuple[ComposeStep, ...] = ()
     # Folder with per-language demo text files (<texts_dir>/<lang>.json)
@@ -551,6 +554,7 @@ def load_config(path: str | Path | None = None) -> Settings:
         raise SystemExit(f"ERROR: Config {config_path} is missing keys: {', '.join(missing)}")
 
     launch, network, demos = _parse_demo_section(config_path, data)
+    live = parse_live(config_path, data["live"]) if "live" in data else None
     compose = _parse_compose(config_path, data, demos)
 
     # A relative output_dir is relative to the config file, not to wherever the
@@ -578,6 +582,7 @@ def load_config(path: str | Path | None = None) -> Settings:
         language_names=data.get("languages"),
         launch=launch,
         network=network,
+        live=live,
         demos=demos,
         compose=compose,
         texts_dir=texts_dir,

@@ -257,6 +257,10 @@ Flutter apps use the ready-made connector
 wrap `MaterialApp` in `AutomationDemoHost`, register demos, run with
 `--dart-define=AUTOMATION_HOST=<pc ip>:<port>`. Step by step: [MOBILE.md](MOBILE.md).
 
+### Live Flutter sessions
+
+With the connector's live screen registry, `screenshot-tool --live` keeps the app running and sends `list_screens`, `navigate`, `screenshot`, and `reset` commands over the same JSON-lines connection. The connector replies with `screens`, `navigated`, `screenshot`, and `reset_done` events. See [LIVE.md](LIVE.md) for the config, CLI protocol, and reload behavior.
+
 ## 8. Compatibility checklist
 
 - [ ] `--automation-demo <id>` plays the demo and exits on its own

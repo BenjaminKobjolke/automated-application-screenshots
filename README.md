@@ -5,6 +5,7 @@ Automated screenshot capture tool for Windows applications. Two modes:
 - **Language screenshots** — cycles through an app's language dropdown and saves one screenshot per language to `screenshots/<language-code>/screenshot.png`.
 - **Demo recordings** — launches an app that implements the [automation interface](docs/AUTOMATION_INTERFACE.md), records a scripted demo of it, and exports animated **GIF/MP4** plus PNG stills.
 - **Composition** — joins the recordings into the artifacts a README actually shows: a captioned feature tour (rendered with Remotion), slideshow GIFs, inline feature GIFs — each optionally held to a size budget.
+- **Live Flutter sessions** — starts an app once, hot-reloads it on request, and captures named screens without restarting the tool.
 
 The target application is defined by a JSON config file — either in `config/` here, or kept in the app's own repo (FastCalculator keeps its demo config in `calculator/tools/create_media/` with a `create_demos.bat` next to it). Ships with a config for **KeyboardLayoutWatcher** (41 languages).
 
@@ -17,6 +18,7 @@ The target application is defined by a JSON config file — either in `config/` 
 | make my app recordable | [docs/AUTOMATION_INTERFACE.md](docs/AUTOMATION_INTERFACE.md), or the [connector library](../automated-application-screenshots-python-connector) for Python apps |
 | write the demo scripts | the connector's `docs/WRITING_DEMOS.md` |
 | record a mobile (Flutter) app | [docs/MOBILE.md](docs/MOBILE.md) — network mode: phone records, PC exports |
+| iterate on a Flutter screen | [docs/LIVE.md](docs/LIVE.md) — keep the app running and shoot named screens |
 | get a clean, repeatable recording | [docs/RECORDING_ENVIRONMENT.md](docs/RECORDING_ENVIRONMENT.md) |
 | put the result in a README | [docs/PUBLISHING.md](docs/PUBLISHING.md) |
 | see what one config does | `screenshot-tool --config app.json --list` |
@@ -130,6 +132,10 @@ most three encodes, keeping the best quality that fits. Details:
 ### Mobile / Flutter apps (network mode)
 
 Apps without a desktop window run on a phone or emulator, connect to the tool over the LAN, record their own video and send stills in-app: replace `launch` with `"network": {"port": 8765}`, start `--demo all` on the PC, then the app with `--dart-define=AUTOMATION_HOST=<pc ip>:8765`. Output layout is unchanged. Step by step: [docs/MOBILE.md](docs/MOBILE.md).
+
+### Live mode
+
+For fast Flutter UI iteration, configure a `live` section and run `screenshot-tool --live`. The tool starts Flutter once and accepts `start`, `reload`, `screens`, `shot`, and `stop` JSON commands on stdin. See [docs/LIVE.md](docs/LIVE.md) for the protocol and target setup.
 
 ### Multi-language demos
 

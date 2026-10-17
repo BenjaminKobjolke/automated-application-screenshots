@@ -4,6 +4,14 @@
 
   "network": { "port": 8765 },
 
+  "live": {
+    "target": "android_emulator",
+    "avd": "Pixel_7_API_34",
+    "headless": false,
+    "port": 8766,
+    "project_dir": "."
+  },
+
   "demos": [
     {
       "id": 1,

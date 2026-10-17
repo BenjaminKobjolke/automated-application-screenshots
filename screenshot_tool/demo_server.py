@@ -15,7 +15,25 @@ from typing import Any
 
 from .app_logger import AppLogger
 
-KNOWN_EVENTS = ("demo_started", "screenshot", "demo_ended", "video", "error")
+KNOWN_EVENTS = (
+    "demo_started",
+    "screenshot",
+    "demo_ended",
+    "video",
+    "error",
+    "screens",
+    "navigated",
+    "reset_done",
+)
+
+
+@dataclass(frozen=True)
+class ScreenInfo:
+    """Typed metadata for one screen registered by the app's live connector."""
+
+    name: str
+    description: str | None = None
+    needs_login: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -31,6 +49,8 @@ class DemoEvent:
     # Network mode: byte count of the mp4 that follows a ``video`` header
     size: int | None = None
     message: str | None = None
+    screens: tuple[ScreenInfo, ...] | None = None
+    screen: str | None = None
 
 
 def parse_event_line(line: str) -> DemoEvent:
@@ -45,6 +65,23 @@ def parse_event_line(line: str) -> DemoEvent:
         raise ValueError(f"not JSON: {line!r}") from e
     if not isinstance(data, dict) or data.get("event") not in KNOWN_EVENTS:
         raise ValueError(f"unknown demo event: {line!r}")
+    screens_data = data.get("screens")
+    if "screens" in data and not isinstance(screens_data, list):
+        raise ValueError("screens metadata must be a list")
+    screens = None
+    if isinstance(screens_data, list):
+        parsed_screens: list[ScreenInfo] = []
+        for item in screens_data:
+            if not isinstance(item, dict) or not isinstance(item.get("name"), str):
+                raise ValueError("screen metadata requires a string name")
+            description = item.get("description")
+            needs_login = item.get("needs_login")
+            if description is not None and not isinstance(description, str):
+                raise ValueError("screen description must be a string")
+            if needs_login is not None and not isinstance(needs_login, bool):
+                raise ValueError("screen needs_login must be a boolean")
+            parsed_screens.append(ScreenInfo(item["name"], description, needs_login))
+        screens = tuple(parsed_screens)
     return DemoEvent(
         event=data["event"],
         demo=data.get("demo"),
@@ -53,6 +90,8 @@ def parse_event_line(line: str) -> DemoEvent:
         png=base64.b64decode(data["png"]) if isinstance(data.get("png"), str) else None,
         size=data.get("size"),
         message=data.get("message"),
+        screens=screens,
+        screen=data.get("screen"),
     )
 
 
@@ -74,6 +113,12 @@ class DemoServer:
         Returns:
             True once connected, False on timeout.
         """
+        # A hot restart reconnects on a fresh socket. Discard any incomplete
+        # line buffered from the old isolate before reading the new connection.
+        if self._conn is not None:
+            self._conn.close()
+            self._conn = None
+        self._buffer = b""
         self._server.settimeout(timeout)
         try:
             self._conn, _ = self._server.accept()

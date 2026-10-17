@@ -24,10 +24,14 @@ Usage:
 import argparse
 import io
 import sys
+from dataclasses import replace
 
 from . import config
 from .app_logger import AppLogger
 from .cli import ScreenshotCLI
+from .live_cli import LiveCLI
+from .live_config import LiveTarget
+from .live_session import LiveSession
 
 
 def setup_utf8_console() -> None:
@@ -138,13 +142,38 @@ Examples:
         "or type matches NAME). Combine with --demo to record and build in one run.",
     )
 
+    parser.add_argument(
+        "--live",
+        action="store_true",
+        help="Keep a Flutter app running and accept JSON-lines live commands",
+    )
+    parser.add_argument(
+        "--target",
+        choices=[target.value for target in LiveTarget],
+        help="Override the live config target",
+    )
+
     args = parser.parse_args()
 
+    if args.live and (args.demo or args.compose or args.list or args.start_from):
+        parser.error("--live cannot be combined with --demo, --compose, --list or --start-from")
+    if args.target and not args.live:
+        parser.error("--target requires --live")
     if (args.demo or args.compose) and (args.list or args.start_from):
         parser.error("--demo/--compose cannot be combined with --list or --start-from")
 
     if args.config:
         config.load_config(args.config)
+
+    if args.live:
+        live_settings = config.settings.live
+        if live_settings is None:
+            parser.error("--live requires a config with a live section")
+        if args.target:
+            live_settings = replace(live_settings, target=LiveTarget(args.target))
+        AppLogger.configure(stream=sys.stderr)
+        AppLogger.info("Starting live screenshot session")
+        return LiveCLI(LiveSession(live_settings), sys.stdin, sys.stdout).run()
 
     if args.list:
         list_config()

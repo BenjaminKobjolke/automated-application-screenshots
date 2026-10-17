@@ -154,6 +154,4 @@ action) arrives as an `error` event and fails that run with the reason.
 
 ## Out of scope (for now)
 
-Windows-desktop Flutter (use launch mode once the app exposes an HWND), iOS
-(the plugin uses ReplayKit; untested), audio, single-consent multi-demo
-recording (needs custom native code).
+Windows-desktop Flutter demo recording (use launch mode once the app exposes an HWND); live mode supports Windows Flutter apps. iOS (the plugin uses ReplayKit; untested), audio, and single-consent multi-demo recording (needs custom native code) remain out of scope. See [LIVE.md](LIVE.md) for live Flutter sessions.

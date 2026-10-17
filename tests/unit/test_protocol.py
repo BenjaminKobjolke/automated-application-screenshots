@@ -2,7 +2,7 @@
 
 import pytest
 
-from screenshot_tool.demo_server import DemoEvent, parse_event_line
+from screenshot_tool.demo_server import DemoEvent, ScreenInfo, parse_event_line
 
 
 def test_parse_demo_started_with_hwnd():
@@ -48,3 +48,31 @@ def test_parse_video_header_carries_size():
 def test_parse_error_carries_message():
     event = parse_event_line('{"event": "error", "message": "unknown demo 7"}')
     assert event.event == "error" and event.message == "unknown demo 7"
+
+
+def test_parse_live_screens_event():
+    event = parse_event_line(
+        '{"event":"screens","screens":[{"name":"home","description":"Home",'
+        '"needs_login":false}]}'
+    )
+    assert event.screens == (ScreenInfo(name="home", description="Home", needs_login=False),)
+
+
+def test_parse_live_screens_rejects_missing_name():
+    with pytest.raises(ValueError, match="screen metadata requires a string name"):
+        parse_event_line('{"event":"screens","screens":[{"description":"Home"}]}')
+
+
+def test_parse_live_screens_rejects_non_list_metadata():
+    with pytest.raises(ValueError, match="screens metadata must be a list"):
+        parse_event_line('{"event":"screens","screens":{}}')
+
+
+def test_parse_live_navigated_event():
+    event = parse_event_line('{"event":"navigated","screen":"settings"}')
+    assert event.screen == "settings"
+
+
+def test_parse_live_reset_done_event():
+    event = parse_event_line('{"event":"reset_done"}')
+    assert event.event == "reset_done"

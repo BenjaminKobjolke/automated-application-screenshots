@@ -6,6 +6,7 @@ A config can define either or both modes:
 
 - **Language screenshots** — requires the `languages` section (plus the dropdown keys below).
 - **Demo recordings** — requires the `demos` + `launch` sections (see [AUTOMATION_INTERFACE.md](AUTOMATION_INTERFACE.md) for the app-side contract).
+- **Live Flutter sessions** — requires a `live` section (see [LIVE.md](LIVE.md)); it can be used alongside `network` and `demos`.
 
 Always required: `output_dir`. `process_name` and `title_substring` are required in language mode and launch (demo) mode; network mode has no window to find. A missing file, invalid JSON, or missing required key aborts with a clear error message.
 
@@ -109,6 +110,20 @@ Alternative to `launch` for apps without a desktop window (mobile Flutter apps, 
 - `port` (integer) — TCP port to listen on, e.g. `8765`.
 
 In network mode `fps` only drives the GIF derived from the uploaded mp4 (the device encoder decides the video frame rate), `width`/`height`/`crop` are unused, and two extra demo keys apply: `pixel_ratio` and `steps` (below). Example: `config/example-network.json`.
+
+### `live` (object, optional)
+
+Settings for `screenshot-tool --live`, which starts a Flutter app once and accepts JSON-lines commands until stopped. The full protocol and setup are in [LIVE.md](LIVE.md). The example `config/example-network.json` includes a live section.
+
+- `target` (required): `windows` or `android_emulator`; `--target` can override it for one run.
+- `avd` (string, Android only when starting a new emulator): emulator name. An already running emulator is reused.
+- `headless` (boolean, default `false`): start a new emulator without a window.
+- `port` (integer): TCP port used by the app to connect. The tool derives `AUTOMATION_HOST` (`127.0.0.1` for Windows, `10.0.2.2` for the Android emulator).
+- `flutter` (non-empty string array, default `["flutter"]`): command prefix, such as `["fvm", "flutter"]`.
+- `run_args` (string array, optional): extra arguments appended to `flutter run`.
+- `project_dir` (string, default `"."`): Flutter project root, resolved relative to the config file.
+- `app_settings` (object, optional): settings passed in the connector's `reset` command.
+- `start_timeout` (positive number of seconds, default `600`): budget for Flutter build, app launch, and connection.
 
 ### `texts_dir` (string, demo mode, optional)
 
