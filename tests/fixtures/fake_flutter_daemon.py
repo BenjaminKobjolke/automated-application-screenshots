@@ -1,4 +1,7 @@
-"""Small Flutter machine-protocol stand-in for live-session integration tests."""
+"""Small Flutter machine-protocol stand-in for live-session integration tests.
+
+Like ``flutter run --machine``, it drops stdin lines not wrapped in ``[ ]``.
+"""
 
 from __future__ import annotations
 
@@ -60,25 +63,28 @@ def run() -> None:
     emit({"event": "app.started", "params": {"appId": "fake-app"}})
     connect_app(host, port)
     for line in sys.stdin:
-        request = json.loads(line)
-        method = request.get("method")
-        params = request.get("params", {})
-        if method == "app.restart":
-            full = params.get("fullRestart") is True
-            mode = control.read_text().strip() if control.exists() else ""
-            if mode == "exit":
-                emit({"id": request["id"], "result": {"code": 1, "message": "process exited"}})
+        stripped = line.strip()
+        if not stripped.startswith("[") or not stripped.endswith("]"):
+            continue
+        for request in json.loads(stripped):
+            method = request.get("method")
+            params = request.get("params", {})
+            if method == "app.restart":
+                full = params.get("fullRestart") is True
+                mode = control.read_text().strip() if control.exists() else ""
+                if mode == "exit":
+                    emit({"id": request["id"], "result": {"code": 1, "message": "process exited"}})
+                    return
+                if mode == "compile" or (mode == "refuse_reload" and not full):
+                    result = {"code": 1, "message": "fake compile error at sample.dart:7"}
+                else:
+                    result = {"code": 0}
+                    if full:
+                        connect_app(host, port)
+                emit({"id": request["id"], "result": result})
+            elif method == "app.stop":
+                emit({"id": request["id"], "result": {"code": 0}})
                 return
-            if mode == "compile" or (mode == "refuse_reload" and not full):
-                result = {"code": 1, "message": "fake compile error at sample.dart:7"}
-            else:
-                result = {"code": 0}
-                if full:
-                    connect_app(host, port)
-            emit({"id": request["id"], "result": result})
-        elif method == "app.stop":
-            emit({"id": request["id"], "result": {"code": 0}})
-            return
 
 
 if __name__ == "__main__":

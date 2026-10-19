@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import socket
 import sys
@@ -53,6 +54,19 @@ def test_reload_succeeds_without_reconnecting(live_session: LiveSession):
     live_session.start()
 
     assert live_session.reload().outcome is ReloadOutcome.RELOADED
+
+
+def test_daemon_ignores_unwrapped_requests(live_session: LiveSession, monkeypatch: pytest.MonkeyPatch):
+    live_session.start()
+    monkeypatch.setattr(
+        "screenshot_tool.flutter_daemon.encode_request",
+        lambda request: json.dumps(request) + "\n",
+    )
+
+    result = live_session.daemon.restart(full=False, timeout=1)
+
+    assert not result.success
+    assert result.message == "Flutter restart timed out"
 
 
 def test_hot_restart_fallback_reconnects_and_resets(live_session: LiveSession):

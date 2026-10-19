@@ -21,6 +21,11 @@ _LOG_LIMIT = 100
 _STOP_TIMEOUT = 3.0
 
 
+def encode_request(request: dict[str, Any]) -> str:
+    # Flutter silently drops stdin lines unless each request is wrapped in an array.
+    return json.dumps([request]) + "\n"
+
+
 @dataclass(frozen=True)
 class DaemonMessage:
     """One structured event or response from Flutter's daemon."""
@@ -188,7 +193,7 @@ class FlutterDaemon:
             request_id = str(self._request_id)
             request = {"id": request_id, "method": method, "params": params}
             try:
-                process.stdin.write(json.dumps(request) + "\n")
+                process.stdin.write(encode_request(request))
                 process.stdin.flush()
             except (BrokenPipeError, OSError):
                 return None

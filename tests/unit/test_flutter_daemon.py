@@ -1,9 +1,15 @@
 """Focused tests for Flutter daemon parsing and command construction."""
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from screenshot_tool.flutter_daemon import DaemonMessage, FlutterDaemon, parse_daemon_line
+from screenshot_tool.flutter_daemon import (
+    DaemonMessage,
+    FlutterDaemon,
+    encode_request,
+    parse_daemon_line,
+)
 from screenshot_tool.live_config import LiveSettings, LiveTarget
 
 
@@ -33,6 +39,16 @@ def test_parse_daemon_non_json_as_log_text():
     messages, log = parse_daemon_line("Building Windows application...")
     assert messages == ()
     assert log == "Building Windows application..."
+
+
+def test_encode_request_wraps_object_in_array():
+    encoded = encode_request({"id": "1", "method": "app.restart", "params": {"appId": "a"}})
+
+    assert encoded.endswith("\n")
+    assert encoded.count("\n") == 1
+    assert json.loads(encoded) == [
+        {"id": "1", "method": "app.restart", "params": {"appId": "a"}}
+    ]
 
 
 def test_run_command_derives_host_and_resolves_flutter_prefix(monkeypatch):
