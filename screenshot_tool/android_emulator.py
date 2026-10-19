@@ -90,6 +90,8 @@ class AndroidEmulator:
             if headless:
                 command.append("-no-window")
             command.append("-no-snapshot-save")
+            # A pending crash report can block startup on a hidden consent dialog.
+            command += ["-crash-report-mode", "disabled"]
             self._process = self._runner.Popen(
                 command,
                 stdout=subprocess.DEVNULL,

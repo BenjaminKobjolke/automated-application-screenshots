@@ -23,7 +23,7 @@ Add a `live` object to the app's screenshot config:
 }
 ```
 
-`target` is `windows` or `android_emulator`. `--target` can override it for one run. For Android, the tool reuses an already running emulator or starts the configured `avd`; `headless: true` starts a new emulator without a window. Windows Flutter needs an unlocked interactive desktop. Android can run headless.
+`target` is `windows` or `android_emulator`. `--target` can override it for one run. For Android, the tool reuses an already running emulator or starts the configured `avd`; `headless: true` starts a new emulator without a window. A new emulator starts with `-crash-report-mode disabled`, so a pending crash report from an earlier crash never blocks start-up. Windows Flutter needs an unlocked interactive desktop. Android can run headless.
 
 `emulator` and `adb` are taken from PATH, otherwise from `ANDROID_HOME` or `ANDROID_SDK_ROOT` (`emulator/`, `platform-tools/`); if none has them, `start` fails with an error naming the missing program and where it looked.
 
