@@ -9,8 +9,9 @@ from pathlib import Path
 
 import pytest
 
+from screenshot_tool.android_emulator import AndroidEmulator
 from screenshot_tool.live_config import LiveSettings, LiveTarget
-from screenshot_tool.live_session import LiveSession, ReloadOutcome
+from screenshot_tool.live_session import LiveError, LiveSession, ReloadOutcome
 from screenshot_tool.demo_server import ScreenInfo
 
 FAKE_DAEMON = Path(__file__).parents[1] / "fixtures" / "fake_flutter_daemon.py"
@@ -91,3 +92,23 @@ def test_stop_cleans_up_daemon_process(live_session: LiveSession):
     live_session.stop()
 
     assert not daemon.is_running()
+
+
+def test_android_start_without_sdk_names_missing_program(tmp_path: Path):
+    settings = LiveSettings(
+        target=LiveTarget.ANDROID_EMULATOR,
+        avd="Test_AVD",
+        port=available_port(),
+        project_dir=tmp_path,
+    )
+    session = LiveSession(
+        settings,
+        emulator=AndroidEmulator(environ={"PATH": str(tmp_path / "empty-path")}),
+    )
+
+    with pytest.raises(LiveError) as error:
+        session.start()
+
+    assert "'adb'" in error.value.message
+    assert "ANDROID_HOME" in error.value.message
+    assert "ANDROID_SDK_ROOT" in error.value.message

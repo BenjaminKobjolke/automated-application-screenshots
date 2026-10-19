@@ -2,15 +2,44 @@
 
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Any, Protocol
 
 import psutil
 
 _BOOT_POLL_SECONDS = 1.0
 _PROCESS_STOP_TIMEOUT = 3.0
+_SDK_ENV_VARS = ("ANDROID_HOME", "ANDROID_SDK_ROOT")
+_ADB = ("adb", "platform-tools")
+_EMULATOR = ("emulator", "emulator")
+
+
+def find_sdk_program(name: str, sdk_subdir: str, environ: Mapping[str, str]) -> str:
+    """Find an Android SDK program on PATH or in either configured SDK root."""
+    path_match = shutil.which(name, path=environ.get("PATH", ""))
+    if path_match:
+        return path_match
+
+    executable = f"{name}.exe" if os.name == "nt" else name
+    locations: list[str] = ["PATH"]
+    for variable in _SDK_ENV_VARS:
+        root = environ.get(variable, "")
+        if root:
+            candidate = Path(root) / sdk_subdir / executable
+            locations.append(f"{variable} ({root})")
+            if candidate.is_file():
+                return str(candidate)
+        else:
+            locations.append(f"{variable} (not set)")
+
+    raise FileNotFoundError(
+        f"Android SDK program '{name}' not found. Looked on {', in '.join(locations)}."
+    )
 
 
 class CommandRunner(Protocol):
@@ -24,15 +53,24 @@ class CommandRunner(Protocol):
 class AndroidEmulator:
     """Manage an emulator while tracking whether this instance started it."""
 
-    def __init__(self, runner: CommandRunner = subprocess) -> None:
+    def __init__(
+        self,
+        runner: CommandRunner = subprocess,
+        environ: Mapping[str, str] = os.environ,
+    ) -> None:
         self._runner = runner
+        self._environ = environ
+        self._adb: str | None = None
+        self._emulator: str | None = None
         self._process: subprocess.Popen[str] | None = None
         self._serial: str | None = None
         self._owns_emulator = False
 
     def running_serials(self) -> list[str]:
         """Return online Android emulator serials reported by adb."""
-        result = self._runner.run(["adb", "devices"], capture_output=True, check=True, text=True)
+        result = self._runner.run(
+            [self._adb_path(), "devices"], capture_output=True, check=True, text=True
+        )
         serials: list[str] = []
         for line in result.stdout.splitlines()[1:]:
             columns = line.split()
@@ -48,7 +86,7 @@ class AndroidEmulator:
         else:
             if not avd:
                 raise ValueError("live.avd is required when no Android emulator is running")
-            command = ["emulator", "-avd", avd]
+            command = [self._emulator_path(), "-avd", avd]
             if headless:
                 command.append("-no-window")
             command.append("-no-snapshot-save")
@@ -70,7 +108,7 @@ class AndroidEmulator:
         serial = self._serial
         if serial:
             self._runner.run(
-                ["adb", "-s", serial, "emu", "kill"],
+                [self._adb_path(), "-s", serial, "emu", "kill"],
                 capture_output=True,
                 check=False,
                 text=True,
@@ -92,6 +130,16 @@ class AndroidEmulator:
             time.sleep(min(_BOOT_POLL_SECONDS, max(0, deadline - time.monotonic())))
         raise TimeoutError("Android emulator did not connect to adb before timeout")
 
+    def _adb_path(self) -> str:
+        if self._adb is None:
+            self._adb = find_sdk_program(*_ADB, self._environ)
+        return self._adb
+
+    def _emulator_path(self) -> str:
+        if self._emulator is None:
+            self._emulator = find_sdk_program(*_EMULATOR, self._environ)
+        return self._emulator
+
     def _wait_for_boot(self, serial: str, timeout: float) -> None:
         deadline = time.monotonic() + timeout
         remaining = deadline - time.monotonic()
@@ -99,7 +147,7 @@ class AndroidEmulator:
             raise TimeoutError(f"Android emulator {serial} did not become available before timeout")
         try:
             self._runner.run(
-                ["adb", "-s", serial, "wait-for-device"],
+                [self._adb_path(), "-s", serial, "wait-for-device"],
                 capture_output=True,
                 check=True,
                 text=True,
@@ -111,7 +159,7 @@ class AndroidEmulator:
             ) from error
         while time.monotonic() < deadline:
             result = self._runner.run(
-                ["adb", "-s", serial, "shell", "getprop", "sys.boot_completed"],
+                [self._adb_path(), "-s", serial, "shell", "getprop", "sys.boot_completed"],
                 capture_output=True,
                 check=True,
                 text=True,

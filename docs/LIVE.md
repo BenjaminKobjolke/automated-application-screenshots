@@ -25,6 +25,8 @@ Add a `live` object to the app's screenshot config:
 
 `target` is `windows` or `android_emulator`. `--target` can override it for one run. For Android, the tool reuses an already running emulator or starts the configured `avd`; `headless: true` starts a new emulator without a window. Windows Flutter needs an unlocked interactive desktop. Android can run headless.
 
+`emulator` and `adb` are taken from PATH, otherwise from `ANDROID_HOME` or `ANDROID_SDK_ROOT` (`emulator/`, `platform-tools/`); if none has them, `start` fails with an error naming the missing program and where it looked.
+
 `port` is the local TCP port the app connects to. The tool derives `AUTOMATION_HOST`: Windows uses `127.0.0.1:<port>` and the Android emulator uses `10.0.2.2:<port>`. `flutter` is a command prefix (`["flutter"]` by default), `run_args` adds arguments to `flutter run`, and `project_dir` resolves relative to the config file. `app_settings` are sent with each reset. Keep credentials out of committed example configs; use a local config for test account tokens.
 
 `start_timeout` covers Flutter's build, app launch, and connection. Reload, navigation, and screenshot requests have a 60 second timeout.
