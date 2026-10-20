@@ -45,12 +45,19 @@ The process reads one JSON object per line from stdin and writes exactly one JSO
 ```json
 {"command":"start","id":1}
 {"command":"screens","id":2}
-{"command":"shot","screen":"home","out":"output/home.png","id":3}
+{"command":"shot","screen":"home","out":"output/home.png","theme":"dark","id":3}
 {"command":"reload","id":4}
 {"command":"stop","id":5}
 ```
 
-`start` launches the app and resets it. `screens` returns the connector's screen registry. `shot` navigates to the requested screen and saves its PNG to `out`. `reload` tries hot reload, hot restart, then relaunch if Flutter exits. Its `outcome` is `reloaded`, `restarted`, `relaunched`, or `compile_error`; compile details are returned in `output`. Send `stop` or close stdin to clean up the Flutter process and any emulator this tool started. An emulator that was already running is left open.
+`start` launches the app and resets it. `screens` returns the connector's screen registry. `shot` navigates to the requested screen and saves its PNG to `out`. It accepts optional `theme` (`dark` or `light`), `section` (a non-empty key registered for that screen), and `full` (`true` for a stitched full-length PNG). For example:
+
+```json
+{"command":"shot","screen":"habit_edit","out":"output/habit-edit.png","theme":"dark","section":"additional_information"}
+{"command":"shot","screen":"home","out":"output/home-full.png","full":true}
+```
+
+`section` and `full` cannot be combined. A request without these fields keeps the existing behavior. `screens` includes `sections` only for screens that register them. Invalid option values and connector errors return `ok:false` with an `error` message. Reload tries hot reload, hot restart, then relaunch if Flutter exits. Its `outcome` is `reloaded`, `restarted`, `relaunched`, or `compile_error`; compile details are returned in `output`. Send `stop` or close stdin to clean up the Flutter process and any emulator this tool started. An emulator that was already running is left open.
 
 Before `start`, commands other than `stop` return `{"ok":false,"error":"not started"}`. Malformed JSON and unknown commands return an error response; the process remains available for the next line.
 
@@ -61,9 +68,12 @@ The connector connects to `AUTOMATION_HOST` over TCP and handles one JSON comman
 | Tool sends | Connector replies |
 |---|---|
 | `{"command":"list_screens"}` | `{"event":"screens","screens":[...]}` |
-| `{"command":"navigate","screen":"home"}` | `{"event":"navigated","screen":"home"}` |
-| `{"command":"screenshot","name":"home","pixel_ratio":1.0}` | Existing `screenshot` event with a base64 PNG |
+| `{"command":"set_theme","theme":"dark"}` | `{"event":"theme_set","theme":"dark"}`; an app without a theme hook reports an `error` |
+| `{"command":"navigate","screen":"habit_edit","section":"additional_information"}` | `{"event":"navigated","screen":"habit_edit"}` after scrolling; unknown sections report an `error` naming the key and screen |
+| `{"command":"screenshot","name":"home","pixel_ratio":1.0,"full":true}` | Existing `screenshot` event with one base64 PNG of the full scrollable content |
 | `{"command":"reset","settings":{}}` | `{"event":"reset_done"}` |
+
+The `section` field on `navigate` and the `full` field on `screenshot` are optional. Apps must expose a theme hook to support `set_theme`; when no hook is available they should send an `error` event such as `theme switching is not supported by this app`. `list_screens` screen items may include a `sections` array of registered section keys.
 
 Any operation can reply with the existing `error` event and a message. After a hot restart the app reconnects; the tool accepts the new connection and resets it before continuing. The shared connector guide covers screen registration, debug-only use, test login setup, and screen preparation.
 
@@ -74,5 +84,6 @@ Any operation can reply with the existing `error` event and a message. After a h
 - **No app connection before timeout:** confirm the connector is enabled in the debug build and that `project_dir` points to the Flutter app.
 - **Windows screenshots fail on a locked or minimized desktop:** unlock the desktop, restore the app window, then request the screenshot again.
 - **Hot reload reports a compile error:** fix the reported Dart error and send `reload` again. If reload cannot update the app, the tool attempts a hot restart or relaunch.
+- **Timed out waiting for `theme_set`:** the connector does not support theme switching yet. Update it to handle `set_theme` and reply with `theme_set`; older connectors ignore this command and the tool waits up to 60 seconds.
 
 Live mode is separate from `--demo`: it does not record video or run scripted demo steps. Existing demo and network modes continue to use their existing commands.

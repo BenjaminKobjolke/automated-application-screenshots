@@ -45,6 +45,28 @@ class ReloadResult:
     output: str = ""
 
 
+class ShotTheme(str, Enum):
+    """Theme requested for one live screenshot."""
+
+    DARK = "dark"
+    LIGHT = "light"
+
+
+@dataclass(frozen=True)
+class ShotRequest:
+    """Options for capturing a named live screen."""
+
+    screen: str
+    out: str | Path
+    theme: ShotTheme | None = None
+    section: str | None = None
+    full: bool = False
+
+    def __post_init__(self) -> None:
+        if self.section is not None and self.full:
+            raise ValueError("section and full cannot be combined")
+
+
 class LiveSession:
     """Own the app connection, Flutter process, and optional emulator lifecycle."""
 
@@ -133,17 +155,32 @@ class LiveSession:
         )
         return event.screens or ()
 
-    def shot(self, screen: str, out: str | Path) -> Path:
+    def shot(self, request: ShotRequest) -> Path:
         """Navigate to a named screen and save the app-provided PNG."""
         self._require_started()
-        self._request({"command": "navigate", "screen": screen}, expected="navigated")
+        if request.theme is not None:
+            self._request(
+                {"command": "set_theme", "theme": request.theme.value},
+                expected="theme_set",
+            )
+        navigation: dict[str, object] = {"command": "navigate", "screen": request.screen}
+        if request.section is not None:
+            navigation["section"] = request.section
+        self._request(navigation, expected="navigated")
+        screenshot: dict[str, object] = {
+            "command": "screenshot",
+            "name": request.screen,
+            "pixel_ratio": 1.0,
+        }
+        if request.full:
+            screenshot["full"] = True
         event = self._request(
-            {"command": "screenshot", "name": screen, "pixel_ratio": 1.0},
+            screenshot,
             expected="screenshot",
         )
         if event.png is None:
-            raise LiveError(f"app returned no PNG for screen {screen!r}")
-        path = Path(out)
+            raise LiveError(f"app returned no PNG for screen {request.screen!r}")
+        path = Path(request.out)
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(event.png)

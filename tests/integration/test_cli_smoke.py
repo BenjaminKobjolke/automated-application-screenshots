@@ -85,7 +85,10 @@ def test_live_subprocess_keeps_stdout_json_and_routes_logs_to_stderr(tmp_path):
     responses = [json.loads(line) for line in result.stdout.splitlines()]
     assert [response["id"] for response in responses] == [1, 2, 3, 4, 5]
     assert all(response["ok"] for response in responses), responses
-    assert responses[1]["screens"] == [{"name": "home"}]
+    assert responses[1]["screens"] == [
+        {"name": "home"},
+        {"name": "habit_edit", "sections": ["additional_information"]},
+    ]
     assert responses[3]["command"] == "reload"
     assert responses[3]["result"] == "reloaded"
     assert screenshot.read_bytes() == b"fake-png"

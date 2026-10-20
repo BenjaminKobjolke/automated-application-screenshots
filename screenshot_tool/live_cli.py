@@ -8,7 +8,7 @@ from enum import Enum
 from typing import TextIO
 
 from .demo_server import ScreenInfo
-from .live_session import LiveError, LiveSession, ReloadOutcome
+from .live_session import LiveError, LiveSession, ReloadOutcome, ShotRequest, ShotTheme
 
 
 class LiveCommand(str, Enum):
@@ -119,11 +119,7 @@ class LiveCLI:
                 "screens": [_screen_json(screen) for screen in self._session.screens()],
             }
         if command is LiveCommand.SHOT:
-            screen = request.get("screen")
-            out = request.get("out")
-            if not isinstance(screen, str) or not isinstance(out, str):
-                raise ValueError("shot requires string screen and out fields")
-            path = self._session.shot(screen, out)
+            path = self._session.shot(_shot_request(request))
             return {"ok": True, "path": str(path)}
         raise ValueError(f"unknown command: {command.value}")
 
@@ -144,4 +140,34 @@ def _screen_json(screen: ScreenInfo) -> dict[str, object]:
         value["description"] = screen.description
     if screen.needs_login is not None:
         value["needs_login"] = screen.needs_login
+    if screen.sections:
+        value["sections"] = list(screen.sections)
     return value
+
+
+def _shot_request(request: dict[str, object]) -> ShotRequest:
+    """Validate JSON shot options and convert them to the typed session request."""
+    screen = request.get("screen")
+    out = request.get("out")
+    if not isinstance(screen, str) or not isinstance(out, str):
+        raise ValueError("shot requires string screen and out fields")
+
+    theme: ShotTheme | None = None
+    if "theme" in request:
+        theme_value = request["theme"]
+        if theme_value not in (ShotTheme.DARK.value, ShotTheme.LIGHT.value):
+            raise ValueError("theme must be dark or light")
+        theme = ShotTheme(theme_value)
+
+    section: str | None = None
+    if "section" in request:
+        section_value = request["section"]
+        if not isinstance(section_value, str) or not section_value:
+            raise ValueError("section must be a non-empty string")
+        section = section_value
+
+    full = request.get("full", False)
+    if not isinstance(full, bool):
+        raise ValueError("full must be a boolean")
+
+    return ShotRequest(screen, out, theme, section, full)

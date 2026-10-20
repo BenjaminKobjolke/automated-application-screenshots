@@ -25,6 +25,8 @@ def emit(message: dict[str, object]) -> None:
 
 
 def app_reader(connection: socket.socket) -> None:
+    theme: str | None = None
+    section: str | None = None
     with connection, connection.makefile("r", encoding="utf-8") as stream:
         for line in stream:
             command = json.loads(line)
@@ -32,11 +34,39 @@ def app_reader(connection: socket.socket) -> None:
             if name == "reset":
                 event: dict[str, object] = {"event": "reset_done"}
             elif name == "list_screens":
-                event = {"event": "screens", "screens": [{"name": "home"}]}
+                event = {
+                    "event": "screens",
+                    "screens": [
+                        {"name": "home"},
+                        {"name": "habit_edit", "sections": ["additional_information"]},
+                    ],
+                }
+            elif name == "set_theme":
+                theme = command["theme"]
+                event = {"event": "theme_set", "theme": theme}
             elif name == "navigate":
-                event = {"event": "navigated", "screen": command["screen"]}
+                requested_section = command.get("section")
+                if requested_section and not (
+                    command["screen"] == "habit_edit"
+                    and requested_section == "additional_information"
+                ):
+                    event = {
+                        "event": "error",
+                        "message": f"unknown section {requested_section} for {command['screen']}",
+                    }
+                else:
+                    section = requested_section
+                    event = {"event": "navigated", "screen": command["screen"]}
             elif name == "screenshot":
-                event = {"event": "screenshot", "name": command["name"], "png": PNG}
+                if theme is None and section is None and "full" not in command:
+                    png = PNG
+                else:
+                    state = (
+                        f"fake-png;theme={theme};section={section};"
+                        f"full={command.get('full', False)}"
+                    ).encode()
+                    png = base64.b64encode(state).decode("ascii")
+                event = {"event": "screenshot", "name": command["name"], "png": png}
             else:
                 event = {"event": "error", "message": f"unknown command: {name}"}
             connection.sendall(json.dumps(event).encode() + b"\n")

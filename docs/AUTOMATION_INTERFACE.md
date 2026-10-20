@@ -259,7 +259,7 @@ wrap `MaterialApp` in `AutomationDemoHost`, register demos, run with
 
 ### Live Flutter sessions
 
-With the connector's live screen registry, `screenshot-tool --live` keeps the app running and sends `list_screens`, `navigate`, `screenshot`, and `reset` commands over the same JSON-lines connection. The connector replies with `screens`, `navigated`, `screenshot`, and `reset_done` events. See [LIVE.md](LIVE.md) for the config, CLI protocol, and reload behavior.
+With the connector's live screen registry, `screenshot-tool --live` keeps the app running and sends `list_screens`, `set_theme`, `navigate`, `screenshot`, and `reset` commands over the same JSON-lines connection. The connector replies with `screens`, `theme_set`, `navigated`, `screenshot`, and `reset_done` events. `shot` can select a theme, scroll to a registered section, or request a full-length capture. See [LIVE.md](LIVE.md) for the config, CLI protocol, and reload behavior.
 
 ## 8. Compatibility checklist
 

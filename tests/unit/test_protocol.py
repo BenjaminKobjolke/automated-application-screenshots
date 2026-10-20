@@ -58,6 +58,30 @@ def test_parse_live_screens_event():
     assert event.screens == (ScreenInfo(name="home", description="Home", needs_login=False),)
 
 
+def test_parse_live_screens_sections():
+    event = parse_event_line(
+        '{"event":"screens","screens":[{"name":"habit_edit",'
+        '"sections":["additional_information"]}]}'
+    )
+    assert event.screens == (ScreenInfo(name="habit_edit", sections=("additional_information",)),)
+
+
+def test_parse_live_screens_sections_default_to_empty():
+    event = parse_event_line('{"event":"screens","screens":[{"name":"home"}]}')
+    assert event.screens == (ScreenInfo(name="home"),)
+
+
+@pytest.mark.parametrize("sections", ['"x"', "[1]"])
+def test_parse_live_screens_rejects_invalid_sections(sections):
+    with pytest.raises(ValueError, match="screen sections must be a list of strings"):
+        parse_event_line(f'{{"event":"screens","screens":[{{"name":"home","sections":{sections}}}]}}')
+
+
+def test_parse_theme_set_event():
+    event = parse_event_line('{"event":"theme_set","theme":"dark"}')
+    assert event.event == "theme_set"
+
+
 def test_parse_live_screens_rejects_missing_name():
     with pytest.raises(ValueError, match="screen metadata requires a string name"):
         parse_event_line('{"event":"screens","screens":[{"description":"Home"}]}')

@@ -12,7 +12,7 @@ import pytest
 
 from screenshot_tool.android_emulator import AndroidEmulator
 from screenshot_tool.live_config import LiveSettings, LiveTarget
-from screenshot_tool.live_session import LiveError, LiveSession, ReloadOutcome
+from screenshot_tool.live_session import LiveError, LiveSession, ReloadOutcome, ShotRequest, ShotTheme
 from screenshot_tool.demo_server import ScreenInfo
 
 FAKE_DAEMON = Path(__file__).parents[1] / "fixtures" / "fake_flutter_daemon.py"
@@ -44,10 +44,37 @@ def live_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> LiveSession
 def test_start_screens_and_png_capture(live_session: LiveSession, tmp_path: Path):
     live_session.start()
 
-    assert live_session.screens() == (ScreenInfo(name="home"),)
+    assert live_session.screens() == (
+        ScreenInfo(name="home"),
+        ScreenInfo(name="habit_edit", sections=("additional_information",)),
+    )
     image = tmp_path / "nested" / "home.png"
-    live_session.shot("home", image)
+    live_session.shot(ShotRequest("home", image))
     assert image.read_bytes() == b"fake-png"
+
+
+def test_shot_options_reach_app_and_save_png(live_session: LiveSession, tmp_path: Path):
+    live_session.start()
+
+    dark = tmp_path / "dark.png"
+    live_session.shot(ShotRequest("habit_edit", dark, ShotTheme.DARK, "additional_information"))
+    assert b"theme=dark" in dark.read_bytes()
+    assert b"section=additional_information" in dark.read_bytes()
+
+    light = tmp_path / "light.png"
+    live_session.shot(ShotRequest("home", light, ShotTheme.LIGHT))
+    assert b"theme=light" in light.read_bytes()
+
+    full = tmp_path / "full.png"
+    live_session.shot(ShotRequest("home", full, full=True))
+    assert b"full=True" in full.read_bytes()
+
+
+def test_unknown_section_returns_app_error(live_session: LiveSession, tmp_path: Path):
+    live_session.start()
+
+    with pytest.raises(LiveError, match="unknown section nope for habit_edit"):
+        live_session.shot(ShotRequest("habit_edit", tmp_path / "unknown.png", section="nope"))
 
 
 def test_reload_succeeds_without_reconnecting(live_session: LiveSession):

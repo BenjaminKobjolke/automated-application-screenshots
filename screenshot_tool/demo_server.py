@@ -23,6 +23,7 @@ KNOWN_EVENTS = (
     "error",
     "screens",
     "navigated",
+    "theme_set",
     "reset_done",
 )
 
@@ -34,6 +35,7 @@ class ScreenInfo:
     name: str
     description: str | None = None
     needs_login: bool | None = None
+    sections: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -76,11 +78,14 @@ def parse_event_line(line: str) -> DemoEvent:
                 raise ValueError("screen metadata requires a string name")
             description = item.get("description")
             needs_login = item.get("needs_login")
+            sections = item.get("sections", [])
             if description is not None and not isinstance(description, str):
                 raise ValueError("screen description must be a string")
             if needs_login is not None and not isinstance(needs_login, bool):
                 raise ValueError("screen needs_login must be a boolean")
-            parsed_screens.append(ScreenInfo(item["name"], description, needs_login))
+            if not isinstance(sections, list) or any(not isinstance(section, str) for section in sections):
+                raise ValueError("screen sections must be a list of strings")
+            parsed_screens.append(ScreenInfo(item["name"], description, needs_login, tuple(sections)))
         screens = tuple(parsed_screens)
     return DemoEvent(
         event=data["event"],

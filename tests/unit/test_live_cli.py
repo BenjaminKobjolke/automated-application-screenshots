@@ -7,7 +7,14 @@ from unittest.mock import MagicMock
 import pytest
 
 from screenshot_tool.live_cli import LiveCLI
-from screenshot_tool.live_session import LiveError, ReloadOutcome, ReloadResult, LiveSession
+from screenshot_tool.live_session import (
+    LiveError,
+    ReloadOutcome,
+    ReloadResult,
+    LiveSession,
+    ShotRequest,
+    ShotTheme,
+)
 from screenshot_tool.demo_server import ScreenInfo
 
 
@@ -23,7 +30,10 @@ def _responses(output: io.StringIO) -> list[dict[str, object]]:
 def test_dispatches_commands_and_echoes_ids():
     session = MagicMock(spec=LiveSession)
     session.start.return_value = "windows"
-    session.screens.return_value = (ScreenInfo(name="home"),)
+    session.screens.return_value = (
+        ScreenInfo(name="home"),
+        ScreenInfo(name="habit_edit", sections=("additional_information",)),
+    )
     session.reload.return_value = ReloadResult(ReloadOutcome.RELOADED, "Hot reload ok")
     session.shot.return_value = "home.png"
     cli, output = _cli(
@@ -41,7 +51,10 @@ def test_dispatches_commands_and_echoes_ids():
 
     assert _responses(output) == [
         {"ok": True, "command": "start", "id": 1, "device": "windows"},
-        {"ok": True, "command": "screens", "id": "s", "screens": [{"name": "home"}]},
+            {"ok": True, "command": "screens", "id": "s", "screens": [
+                {"name": "home"},
+                {"name": "habit_edit", "sections": ["additional_information"]},
+            ]},
         {"ok": True, "command": "reload", "id": 3, "result": "reloaded", "message": "Hot reload ok", "output": ""},
         {"ok": True, "command": "shot", "id": 4, "path": "home.png"},
         {"ok": True, "command": "stop", "id": 5},
@@ -49,7 +62,7 @@ def test_dispatches_commands_and_echoes_ids():
     session.start.assert_called_once_with()
     session.screens.assert_called_once_with()
     session.reload.assert_called_once_with()
-    session.shot.assert_called_once_with("home", "home.png")
+    session.shot.assert_called_once_with(ShotRequest("home", "home.png"))
     session.stop.assert_called_once_with()
 
 
@@ -101,3 +114,70 @@ def test_eof_without_commands_stops_session():
     cli.run()
 
     session.stop.assert_called_once_with()
+
+
+@pytest.mark.parametrize(
+    ("options", "expected"),
+    [
+        ({"theme": "dark", "section": "additional_information"}, ShotRequest(
+            "habit_edit", "x.png", ShotTheme.DARK, "additional_information"
+        )),
+        ({"full": True}, ShotRequest("home", "x.png", full=True)),
+    ],
+)
+def test_shot_options_build_typed_request(options, expected):
+    session = MagicMock(spec=LiveSession)
+    session.start.return_value = "windows"
+    cli, output = _cli(
+        ['{"command":"start"}', json.dumps({"command": "shot", "screen": "habit_edit" if "section" in options else "home", "out": "x.png", **options})],
+        session,
+    )
+
+    cli.run()
+
+    assert _responses(output)[1]["ok"] is True
+    session.shot.assert_called_once_with(expected)
+
+
+@pytest.mark.parametrize(
+    ("options", "message"),
+    [
+        ({"theme": "blue"}, "theme must be dark or light"),
+        ({"theme": None}, "theme must be dark or light"),
+        ({"full": 1}, "full must be a boolean"),
+        ({"section": ""}, "section must be a non-empty string"),
+        ({"section": None}, "section must be a non-empty string"),
+        ({"section": "a", "full": True}, "section and full cannot be combined"),
+    ],
+)
+def test_invalid_shot_options_return_errors(options, message):
+    session = MagicMock(spec=LiveSession)
+    session.start.return_value = "windows"
+    cli, output = _cli(
+        ['{"command":"start"}', json.dumps({"command": "shot", "screen": "home", "out": "x.png", **options})],
+        session,
+    )
+
+    cli.run()
+
+    assert _responses(output)[1]["error"] == message
+    session.shot.assert_not_called()
+
+
+def test_shot_live_error_is_returned_unchanged():
+    session = MagicMock(spec=LiveSession)
+    session.start.return_value = "windows"
+    session.shot.side_effect = LiveError("unknown section additional_information for habit_edit")
+    cli, output = _cli(
+        ['{"command":"start"}', '{"command":"shot","screen":"habit_edit","out":"x.png","section":"additional_information"}'],
+        session,
+    )
+
+    cli.run()
+
+    assert _responses(output)[1]["error"] == "unknown section additional_information for habit_edit"
+
+
+def test_shot_request_rejects_section_and_full_together():
+    with pytest.raises(ValueError, match="section and full cannot be combined"):
+        ShotRequest("home", "x.png", section="a", full=True)
