@@ -218,5 +218,7 @@ composer/node_modules/
 composer/out/
 tickets/
 graphify-out/
+coding-rules.json
+screenshot_tool/graphify-out/
 code_analysis_results/
 .reasonix/
