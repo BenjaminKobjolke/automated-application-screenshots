@@ -94,6 +94,25 @@ def test_rejects_commands_before_start_but_allows_stop():
     session.screens.assert_not_called()
 
 
+def test_unresponsive_reload_returns_failure_result_and_output():
+    session = MagicMock(spec=LiveSession)
+    session.start.return_value = "windows"
+    session.reload.return_value = ReloadResult(
+        ReloadOutcome.UNRESPONSIVE, "Flutter app stopped responding", "flutter log"
+    )
+    cli, output = _cli(['{"command":"start"}', '{"command":"reload"}'], session)
+
+    cli.run()
+
+    assert _responses(output)[1] == {
+        "ok": False,
+        "command": "reload",
+        "result": "unresponsive",
+        "message": "Flutter app stopped responding",
+        "output": "flutter log",
+    }
+
+
 def test_eof_stops_session_and_live_error_includes_output():
     session = MagicMock(spec=LiveSession)
     session.start.side_effect = LiveError("Flutter failed", "compile output")

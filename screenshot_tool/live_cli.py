@@ -105,6 +105,7 @@ class LiveCLI:
             result = self._session.reload()
             succeeded = result.outcome not in {
                 ReloadOutcome.COMPILE_ERROR,
+                ReloadOutcome.UNRESPONSIVE,
                 ReloadOutcome.FAILED,
             }
             return {

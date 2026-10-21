@@ -15,6 +15,7 @@ from .live_config import LiveSettings, LiveTarget, device_id
 _COMMAND_TIMEOUT = 60.0
 _POLL_SECONDS = 0.1
 _EXIT_GRACE_SECONDS = 0.5
+_UNRESPONSIVE_MESSAGE = "Flutter app stopped responding to hot reload and hot restart"
 
 
 class LiveError(RuntimeError):
@@ -33,6 +34,7 @@ class ReloadOutcome(Enum):
     RESTARTED = "restarted"
     RELAUNCHED = "relaunched"
     COMPILE_ERROR = "compile_error"
+    UNRESPONSIVE = "unresponsive"
     FAILED = "failed"
 
 
@@ -138,6 +140,12 @@ class LiveSession:
 
         if not self.daemon.is_running():
             return self._relaunch(output_before)
+
+        if hot_restart.timed_out:
+            output = self._new_output(output_before)
+            # The app froze, so the next reload needs a fresh Flutter run.
+            self.daemon.stop()
+            return ReloadResult(ReloadOutcome.UNRESPONSIVE, _UNRESPONSIVE_MESSAGE, output)
 
         message = hot_restart.message or hot_reload.message or "Flutter restart failed"
         return ReloadResult(

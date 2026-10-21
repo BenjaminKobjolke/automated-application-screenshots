@@ -105,6 +105,8 @@ def run() -> None:
                 if mode == "exit":
                     emit({"id": request["id"], "result": {"code": 1, "message": "process exited"}})
                     return
+                if mode == "hang":
+                    continue
                 if mode == "compile" or (mode == "refuse_reload" and not full):
                     result = {"code": 1, "message": "fake compile error at sample.dart:7"}
                 else:

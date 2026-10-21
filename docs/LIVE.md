@@ -57,7 +57,7 @@ The process reads one JSON object per line from stdin and writes exactly one JSO
 {"command":"shot","screen":"home","out":"output/home-full.png","full":true}
 ```
 
-`section` and `full` cannot be combined. A request without these fields keeps the existing behavior. `screens` includes `sections` only for screens that register them. Invalid option values and connector errors return `ok:false` with an `error` message. Reload tries hot reload, hot restart, then relaunch if Flutter exits. Its `outcome` is `reloaded`, `restarted`, `relaunched`, or `compile_error`; compile details are returned in `output`. Send `stop` or close stdin to clean up the Flutter process and any emulator this tool started. An emulator that was already running is left open.
+`section` and `full` cannot be combined. A request without these fields keeps the existing behavior. `screens` includes `sections` only for screens that register them. Invalid option values and connector errors return `ok:false` with an `error` message. Reload tries hot reload, hot restart, then relaunch if Flutter exits. Its `outcome` is `reloaded`, `restarted`, `relaunched`, `compile_error`, `unresponsive` or `failed`. An `unresponsive` result means the app did not answer the hot restart; the tool stops the Flutter process and the next `reload` relaunches it. Compile details are returned in `output`. Send `stop` or close stdin to clean up the Flutter process and any emulator this tool started. An emulator that was already running is left open.
 
 Before `start`, commands other than `stop` return `{"ok":false,"error":"not started"}`. Malformed JSON and unknown commands return an error response; the process remains available for the next line.
 
@@ -84,6 +84,7 @@ Any operation can reply with the existing `error` event and a message. After a h
 - **No app connection before timeout:** confirm the connector is enabled in the debug build and that `project_dir` points to the Flutter app.
 - **Windows screenshots fail on a locked or minimized desktop:** unlock the desktop, restore the app window, then request the screenshot again.
 - **Hot reload reports a compile error:** fix the reported Dart error and send `reload` again. If reload cannot update the app, the tool attempts a hot restart or relaunch.
+- **Reload reports `unresponsive`:** the app froze (for example, an Android ANR); this is not a code error. Check the emulator log, then send `reload` to relaunch or send `stop` and `start` again.
 - **Timed out waiting for `theme_set`:** the connector does not support theme switching yet. Update it to handle `set_theme` and reply with `theme_set`; older connectors ignore this command and the tool waits up to 60 seconds.
 
 Live mode is separate from `--demo`: it does not record video or run scripted demo steps. Existing demo and network modes continue to use their existing commands.

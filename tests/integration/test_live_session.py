@@ -94,6 +94,23 @@ def test_daemon_ignores_unwrapped_requests(live_session: LiveSession, monkeypatc
 
     assert not result.success
     assert result.message == "Flutter restart timed out"
+    assert result.timed_out
+
+
+def test_restart_timeout_reports_unresponsive_and_stops_app(
+    live_session: LiveSession, monkeypatch: pytest.MonkeyPatch
+):
+    live_session.start()
+    Path(os.environ["FLUTTER_FAKE_CONTROL"]).write_text("hang")
+    monkeypatch.setattr("screenshot_tool.live_session._COMMAND_TIMEOUT", 0.5)
+
+    result = live_session.reload()
+
+    assert result.outcome is ReloadOutcome.UNRESPONSIVE
+    assert "stopped responding" in result.message
+    assert not live_session.daemon.is_running()
+    assert live_session.reload().outcome is ReloadOutcome.RELAUNCHED
+    assert live_session.daemon.is_running()
 
 
 def test_hot_restart_fallback_reconnects_and_resets(live_session: LiveSession):

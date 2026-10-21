@@ -43,6 +43,7 @@ class DaemonResult:
 
     success: bool
     message: str = ""
+    timed_out: bool = False
 
 
 def parse_daemon_line(line: str) -> tuple[tuple[DaemonMessage, ...], str | None]:
@@ -155,7 +156,7 @@ class FlutterDaemon:
             timeout,
         )
         if response is None:
-            return DaemonResult(False, "Flutter restart timed out")
+            return DaemonResult(False, "Flutter restart timed out", timed_out=True)
         if response.error:
             return DaemonResult(False, str(response.error))
         result = response.result
