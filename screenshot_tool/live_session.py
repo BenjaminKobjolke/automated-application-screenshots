@@ -63,6 +63,7 @@ class ShotRequest:
     theme: ShotTheme | None = None
     section: str | None = None
     full: bool = False
+    record_id: int | None = None
 
     def __post_init__(self) -> None:
         if self.section is not None and self.full:
@@ -174,6 +175,8 @@ class LiveSession:
         navigation: dict[str, object] = {"command": "navigate", "screen": request.screen}
         if request.section is not None:
             navigation["section"] = request.section
+        if request.record_id is not None:
+            navigation["record_id"] = request.record_id
         self._request(navigation, expected="navigated")
         screenshot: dict[str, object] = {
             "command": "screenshot",

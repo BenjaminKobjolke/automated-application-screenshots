@@ -33,6 +33,7 @@ def test_dispatches_commands_and_echoes_ids():
     session.screens.return_value = (
         ScreenInfo(name="home"),
         ScreenInfo(name="habit_edit", sections=("additional_information",)),
+        ScreenInfo(name="todo_detail", record_id="todo id"),
     )
     session.reload.return_value = ReloadResult(ReloadOutcome.RELOADED, "Hot reload ok")
     session.shot.return_value = "home.png"
@@ -54,6 +55,7 @@ def test_dispatches_commands_and_echoes_ids():
             {"ok": True, "command": "screens", "id": "s", "screens": [
                 {"name": "home"},
                 {"name": "habit_edit", "sections": ["additional_information"]},
+                {"name": "todo_detail", "record_id": "todo id"},
             ]},
         {"ok": True, "command": "reload", "id": 3, "result": "reloaded", "message": "Hot reload ok", "output": ""},
         {"ok": True, "command": "shot", "id": 4, "path": "home.png"},
@@ -142,13 +144,29 @@ def test_eof_without_commands_stops_session():
             "habit_edit", "x.png", ShotTheme.DARK, "additional_information"
         )),
         ({"full": True}, ShotRequest("home", "x.png", full=True)),
+        ({"record_id": 11551}, ShotRequest("todo_detail", "x.png", record_id=11551)),
+        (
+            {"theme": "dark", "record_id": 7},
+            ShotRequest("todo_detail", "x.png", ShotTheme.DARK, record_id=7),
+        ),
     ],
 )
 def test_shot_options_build_typed_request(options, expected):
     session = MagicMock(spec=LiveSession)
     session.start.return_value = "windows"
+    screen = "habit_edit" if "section" in options else "home"
+    if "record_id" in options:
+        screen = "todo_detail"
     cli, output = _cli(
-        ['{"command":"start"}', json.dumps({"command": "shot", "screen": "habit_edit" if "section" in options else "home", "out": "x.png", **options})],
+        [
+            '{"command":"start"}',
+            json.dumps({
+                "command": "shot",
+                "screen": screen,
+                "out": "x.png",
+                **options,
+            }),
+        ],
         session,
     )
 
@@ -167,6 +185,10 @@ def test_shot_options_build_typed_request(options, expected):
         ({"section": ""}, "section must be a non-empty string"),
         ({"section": None}, "section must be a non-empty string"),
         ({"section": "a", "full": True}, "section and full cannot be combined"),
+        ({"record_id": "11551"}, "record_id must be an integer"),
+        ({"record_id": 1.5}, "record_id must be an integer"),
+        ({"record_id": True}, "record_id must be an integer"),
+        ({"record_id": None}, "record_id must be an integer"),
     ],
 )
 def test_invalid_shot_options_return_errors(options, message):

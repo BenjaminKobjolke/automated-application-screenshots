@@ -47,6 +47,7 @@ def test_start_screens_and_png_capture(live_session: LiveSession, tmp_path: Path
     assert live_session.screens() == (
         ScreenInfo(name="home"),
         ScreenInfo(name="habit_edit", sections=("additional_information",)),
+        ScreenInfo(name="todo_detail", record_id="todo id"),
     )
     image = tmp_path / "nested" / "home.png"
     live_session.shot(ShotRequest("home", image))
@@ -68,6 +69,22 @@ def test_shot_options_reach_app_and_save_png(live_session: LiveSession, tmp_path
     full = tmp_path / "full.png"
     live_session.shot(ShotRequest("home", full, full=True))
     assert b"full=True" in full.read_bytes()
+
+
+def test_record_id_reaches_navigate(live_session: LiveSession, tmp_path: Path):
+    live_session.start()
+
+    image = tmp_path / "todo.png"
+    live_session.shot(ShotRequest("todo_detail", image, record_id=11551))
+
+    assert b"record_id=11551" in image.read_bytes()
+
+
+def test_record_id_on_plain_screen_returns_app_error(live_session: LiveSession, tmp_path: Path):
+    live_session.start()
+
+    with pytest.raises(LiveError, match="takes no record id"):
+        live_session.shot(ShotRequest("home", tmp_path / "home.png", record_id=1))
 
 
 def test_unknown_section_returns_app_error(live_session: LiveSession, tmp_path: Path):

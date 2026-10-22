@@ -88,6 +88,7 @@ def test_live_subprocess_keeps_stdout_json_and_routes_logs_to_stderr(tmp_path):
     assert responses[1]["screens"] == [
         {"name": "home"},
         {"name": "habit_edit", "sections": ["additional_information"]},
+        {"name": "todo_detail", "record_id": "todo id"},
     ]
     assert responses[3]["command"] == "reload"
     assert responses[3]["result"] == "reloaded"

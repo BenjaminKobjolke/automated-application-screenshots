@@ -69,6 +69,23 @@ def test_parse_live_screens_sections():
 def test_parse_live_screens_sections_default_to_empty():
     event = parse_event_line('{"event":"screens","screens":[{"name":"home"}]}')
     assert event.screens == (ScreenInfo(name="home"),)
+    assert event.screens[0].record_id is None
+
+
+def test_parse_live_screens_record_id():
+    event = parse_event_line(
+        '{"event":"screens","screens":[{"name":"todo_detail",'
+        '"record_id":"todo id"}]}'
+    )
+    assert event.screens == (ScreenInfo(name="todo_detail", record_id="todo id"),)
+
+
+@pytest.mark.parametrize("record_id", ["5", '["x"]'])
+def test_parse_live_screens_rejects_invalid_record_id(record_id):
+    with pytest.raises(ValueError, match="screen record_id must be a string"):
+        parse_event_line(
+            f'{{"event":"screens","screens":[{{"name":"home","record_id":{record_id}}}]}}'
+        )
 
 
 @pytest.mark.parametrize("sections", ['"x"', "[1]"])

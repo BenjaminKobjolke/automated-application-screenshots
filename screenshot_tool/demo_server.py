@@ -36,6 +36,7 @@ class ScreenInfo:
     description: str | None = None
     needs_login: bool | None = None
     sections: tuple[str, ...] = ()
+    record_id: str | None = None  # What a record id means, e.g. "todo id"; None if unsupported.
 
 
 @dataclass(frozen=True)
@@ -79,13 +80,20 @@ def parse_event_line(line: str) -> DemoEvent:
             description = item.get("description")
             needs_login = item.get("needs_login")
             sections = item.get("sections", [])
+            record_id = item.get("record_id")
             if description is not None and not isinstance(description, str):
                 raise ValueError("screen description must be a string")
             if needs_login is not None and not isinstance(needs_login, bool):
                 raise ValueError("screen needs_login must be a boolean")
+            if record_id is not None and not isinstance(record_id, str):
+                raise ValueError("screen record_id must be a string")
             if not isinstance(sections, list) or any(not isinstance(section, str) for section in sections):
                 raise ValueError("screen sections must be a list of strings")
-            parsed_screens.append(ScreenInfo(item["name"], description, needs_login, tuple(sections)))
+            parsed_screens.append(
+                ScreenInfo(
+                    item["name"], description, needs_login, tuple(sections), record_id=record_id
+                )
+            )
         screens = tuple(parsed_screens)
     return DemoEvent(
         event=data["event"],

@@ -27,6 +27,7 @@ def emit(message: dict[str, object]) -> None:
 def app_reader(connection: socket.socket) -> None:
     theme: str | None = None
     section: str | None = None
+    record_id: int | None = None
     with connection, connection.makefile("r", encoding="utf-8") as stream:
         for line in stream:
             command = json.loads(line)
@@ -39,14 +40,22 @@ def app_reader(connection: socket.socket) -> None:
                     "screens": [
                         {"name": "home"},
                         {"name": "habit_edit", "sections": ["additional_information"]},
+                        {"name": "todo_detail", "record_id": "todo id"},
                     ],
                 }
             elif name == "set_theme":
                 theme = command["theme"]
                 event = {"event": "theme_set", "theme": theme}
             elif name == "navigate":
+                requested_record_id = command.get("record_id")
                 requested_section = command.get("section")
-                if requested_section and not (
+                record_id = None
+                if requested_record_id is not None and command["screen"] != "todo_detail":
+                    event = {
+                        "event": "error",
+                        "message": f'screen "{command["screen"]}" takes no record id',
+                    }
+                elif requested_section and not (
                     command["screen"] == "habit_edit"
                     and requested_section == "additional_information"
                 ):
@@ -56,13 +65,14 @@ def app_reader(connection: socket.socket) -> None:
                     }
                 else:
                     section = requested_section
+                    record_id = requested_record_id
                     event = {"event": "navigated", "screen": command["screen"]}
             elif name == "screenshot":
-                if theme is None and section is None and "full" not in command:
+                if theme is None and section is None and record_id is None and "full" not in command:
                     png = PNG
                 else:
                     state = (
-                        f"fake-png;theme={theme};section={section};"
+                        f"fake-png;theme={theme};section={section};record_id={record_id};"
                         f"full={command.get('full', False)}"
                     ).encode()
                     png = base64.b64encode(state).decode("ascii")

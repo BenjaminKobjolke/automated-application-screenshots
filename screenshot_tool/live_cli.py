@@ -143,6 +143,8 @@ def _screen_json(screen: ScreenInfo) -> dict[str, object]:
         value["needs_login"] = screen.needs_login
     if screen.sections:
         value["sections"] = list(screen.sections)
+    if screen.record_id is not None:
+        value["record_id"] = screen.record_id
     return value
 
 
@@ -171,4 +173,11 @@ def _shot_request(request: dict[str, object]) -> ShotRequest:
     if not isinstance(full, bool):
         raise ValueError("full must be a boolean")
 
-    return ShotRequest(screen, out, theme, section, full)
+    record_id: int | None = None
+    if "record_id" in request:
+        record_id_value = request["record_id"]
+        if not isinstance(record_id_value, int) or isinstance(record_id_value, bool):
+            raise ValueError("record_id must be an integer")
+        record_id = record_id_value
+
+    return ShotRequest(screen, out, theme, section, full, record_id=record_id)
