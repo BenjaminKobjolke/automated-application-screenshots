@@ -28,3 +28,15 @@ Do not inline rules back into this file and do not use `@import` for either file
 they are intentionally referenced, not imported.
 
 This project's code directory is screenshot_tool/ (graphify is built from it).
+
+## Code Analysis
+
+Run the changed-file analyzer after each feature, completed plan, or bug fix:
+
+```bash
+powershell -Command "cd 'D:\GIT\BenjaminKobjolke\automated-application-screenshots'; cmd /c '.\tools\analyze_changed_and_new_files.bat'"
+```
+
+It reports findings for changed and new Python files. For a full-project audit, run
+`tools\analyze_code.bat`. Results are written to `code_analysis_results/` as per-rule CSV files.
+Fix reported issues in files changed for the work before considering it complete.
