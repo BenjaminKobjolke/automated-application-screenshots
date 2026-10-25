@@ -80,6 +80,18 @@ def test_record_id_reaches_navigate(live_session: LiveSession, tmp_path: Path):
     assert b"record_id=11551" in image.read_bytes()
 
 
+def test_language_reaches_navigate_and_does_not_stick(live_session: LiveSession, tmp_path: Path):
+    live_session.start()
+
+    localized = tmp_path / "localized.png"
+    live_session.shot(ShotRequest("home", localized, language="de"))
+    assert b"language=de" in localized.read_bytes()
+
+    plain = tmp_path / "plain.png"
+    live_session.shot(ShotRequest("home", plain))
+    assert plain.read_bytes() == b"fake-png"
+
+
 def test_record_id_on_plain_screen_returns_app_error(live_session: LiveSession, tmp_path: Path):
     live_session.start()
 

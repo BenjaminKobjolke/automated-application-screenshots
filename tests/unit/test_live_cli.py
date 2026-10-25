@@ -149,6 +149,11 @@ def test_eof_without_commands_stops_session():
             {"theme": "dark", "record_id": 7},
             ShotRequest("todo_detail", "x.png", ShotTheme.DARK, record_id=7),
         ),
+        ({"language": "de"}, ShotRequest("home", "x.png", language="de")),
+        (
+            {"theme": "dark", "language": "pt_BR"},
+            ShotRequest("home", "x.png", ShotTheme.DARK, language="pt_BR"),
+        ),
     ],
 )
 def test_shot_options_build_typed_request(options, expected):
@@ -189,6 +194,11 @@ def test_shot_options_build_typed_request(options, expected):
         ({"record_id": 1.5}, "record_id must be an integer"),
         ({"record_id": True}, "record_id must be an integer"),
         ({"record_id": None}, "record_id must be an integer"),
+        ({"language": ""}, "language must be a language code such as de or en-US"),
+        ({"language": None}, "language must be a language code such as de or en-US"),
+        ({"language": 5}, "language must be a language code such as de or en-US"),
+        ({"language": "german!"}, "language must be a language code such as de or en-US"),
+        ({"language": "d"}, "language must be a language code such as de or en-US"),
     ],
 )
 def test_invalid_shot_options_return_errors(options, message):

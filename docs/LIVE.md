@@ -50,15 +50,16 @@ The process reads one JSON object per line from stdin and writes exactly one JSO
 {"command":"stop","id":5}
 ```
 
-`start` launches the app and resets it. `screens` returns the connector's screen registry. `shot` navigates to the requested screen and saves its PNG to `out`. It accepts optional `theme` (`dark` or `light`), `section` (a non-empty key registered for that screen), `full` (`true` for a stitched full-length PNG), and `record_id` (an integer id for the record the screen opens, such as a todo id; only for screens whose `screens` entry has `record_id`). For example:
+`start` launches the app and resets it. `screens` returns the connector's screen registry. `shot` navigates to the requested screen and saves its PNG to `out`. It accepts optional `theme` (`dark` or `light`), `section` (a non-empty key registered for that screen), `full` (`true` for a stitched full-length PNG), `record_id` (an integer id for the record the screen opens, such as a todo id; only for screens whose `screens` entry has `record_id`), and `language` (a UI language code such as `de` or `en-US`, passed to the app's prepare callback on `navigate`). For example:
 
 ```json
 {"command":"shot","screen":"habit_edit","out":"output/habit-edit.png","theme":"dark","section":"additional_information"}
 {"command":"shot","screen":"home","out":"output/home-full.png","full":true}
 {"command":"shot","screen":"todo_detail","out":"output/todo-11551.png","record_id":11551}
+{"command":"shot","screen":"home","out":"output/home-de.png","language":"de"}
 ```
 
-`section` and `full` cannot be combined. A request without these fields keeps the existing behavior. `screens` includes `sections` only for screens that register them and `record_id` (the id's meaning) only for screens that accept one. An id sent to a screen that takes none returns the app's error as `ok:false`. The request `id` remains a response-correlation id and is never forwarded as a record id. Invalid option values and connector errors return `ok:false` with an `error` message. Reload tries hot reload, hot restart, then relaunch if Flutter exits. Its `outcome` is `reloaded`, `restarted`, `relaunched`, `compile_error`, `unresponsive` or `failed`. An `unresponsive` result means the app did not answer the hot restart; the tool stops the Flutter process and the next `reload` relaunches it. Compile details are returned in `output`. Send `stop` or close stdin to clean up the Flutter process and any emulator this tool started. An emulator that was already running is left open.
+`section` and `full` cannot be combined. The language applies to that shot only; a shot without it sends no language and the app opens in its default language. An app that does not apply the requested language also shows its default language. A request without the other optional fields keeps the existing behavior. `screens` includes `sections` only for screens that register them and `record_id` (the id's meaning) only for screens that accept one. An id sent to a screen that takes none returns the app's error as `ok:false`. The request `id` remains a response-correlation id and is never forwarded as a record id. Invalid option values and connector errors return `ok:false` with an `error` message. Reload tries hot reload, hot restart, then relaunch if Flutter exits. Its `outcome` is `reloaded`, `restarted`, `relaunched`, `compile_error`, `unresponsive` or `failed`. An `unresponsive` result means the app did not answer the hot restart; the tool stops the Flutter process and the next `reload` relaunches it. Compile details are returned in `output`. Send `stop` or close stdin to clean up the Flutter process and any emulator this tool started. An emulator that was already running is left open.
 
 Before `start`, commands other than `stop` return `{"ok":false,"error":"not started"}`. Malformed JSON and unknown commands return an error response; the process remains available for the next line.
 
@@ -72,10 +73,11 @@ The connector connects to `AUTOMATION_HOST` over TCP and handles one JSON comman
 | `{"command":"set_theme","theme":"dark"}` | `{"event":"theme_set","theme":"dark"}`; an app without a theme hook reports an `error` |
 | `{"command":"navigate","screen":"habit_edit","section":"additional_information"}` | `{"event":"navigated","screen":"habit_edit"}` after scrolling; unknown sections report an `error` naming the key and screen |
 | `{"command":"navigate","screen":"todo_detail","record_id":11551}` | `{"event":"navigated","screen":"todo_detail"}` after opening that record; screens without record support report an `error` |
+| `{"command":"navigate","screen":"home","language":"de"}` | `{"event":"navigated","screen":"home"}` after the app's prepare callback receives the language |
 | `{"command":"screenshot","name":"home","pixel_ratio":1.0,"full":true}` | Existing `screenshot` event with one base64 PNG of the full scrollable content |
 | `{"command":"reset","settings":{}}` | `{"event":"reset_done"}` |
 
-The `section` and `record_id` fields on `navigate` and the `full` field on `screenshot` are optional. `list_screens` screen items may include a `sections` array of registered section keys and a `record_id` string describing the accepted id (for example, `todo id`). See the connector's `docs/LIVE_SCREENS.md` for registering record screens. Apps must expose a theme hook to support `set_theme`; when no hook is available they should send an `error` event such as `theme switching is not supported by this app`.
+The `section`, `record_id` and `language` fields on `navigate` and the `full` field on `screenshot` are optional. `list_screens` screen items may include a `sections` array of registered section keys and a `record_id` string describing the accepted id (for example, `todo id`). See the connector's `docs/LIVE_SCREENS.md` for registering record screens. Apps must expose a theme hook to support `set_theme`; when no hook is available they should send an `error` event such as `theme switching is not supported by this app`.
 
 Any operation can reply with the existing `error` event and a message. After a hot restart the app reconnects; the tool accepts the new connection and resets it before continuing. The shared connector guide covers screen registration, debug-only use, test login setup, and screen preparation.
 

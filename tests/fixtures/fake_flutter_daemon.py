@@ -28,6 +28,7 @@ def app_reader(connection: socket.socket) -> None:
     theme: str | None = None
     section: str | None = None
     record_id: int | None = None
+    language: str | None = None
     with connection, connection.makefile("r", encoding="utf-8") as stream:
         for line in stream:
             command = json.loads(line)
@@ -50,6 +51,7 @@ def app_reader(connection: socket.socket) -> None:
                 requested_record_id = command.get("record_id")
                 requested_section = command.get("section")
                 record_id = None
+                language = None
                 if requested_record_id is not None and command["screen"] != "todo_detail":
                     event = {
                         "event": "error",
@@ -66,13 +68,21 @@ def app_reader(connection: socket.socket) -> None:
                 else:
                     section = requested_section
                     record_id = requested_record_id
+                    language = command.get("language")
                     event = {"event": "navigated", "screen": command["screen"]}
             elif name == "screenshot":
-                if theme is None and section is None and record_id is None and "full" not in command:
+                if (
+                    theme is None
+                    and section is None
+                    and record_id is None
+                    and language is None
+                    and "full" not in command
+                ):
                     png = PNG
                 else:
                     state = (
                         f"fake-png;theme={theme};section={section};record_id={record_id};"
+                        f"language={language};"
                         f"full={command.get('full', False)}"
                     ).encode()
                     png = base64.b64encode(state).decode("ascii")

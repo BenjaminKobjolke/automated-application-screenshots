@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from enum import Enum
 from typing import TextIO
 
 from .demo_server import ScreenInfo
 from .live_session import LiveError, LiveSession, ReloadOutcome, ShotRequest, ShotTheme
+
+# BCP 47 style codes with underscores are accepted for Flutter locale names.
+_LANGUAGE_CODE = re.compile(r"[A-Za-z]{2,3}([-_][A-Za-z0-9]{2,8})*")
 
 
 class LiveCommand(str, Enum):
@@ -180,4 +184,11 @@ def _shot_request(request: dict[str, object]) -> ShotRequest:
             raise ValueError("record_id must be an integer")
         record_id = record_id_value
 
-    return ShotRequest(screen, out, theme, section, full, record_id=record_id)
+    language: str | None = None
+    if "language" in request:
+        language_value = request["language"]
+        if not isinstance(language_value, str) or _LANGUAGE_CODE.fullmatch(language_value) is None:
+            raise ValueError("language must be a language code such as de or en-US")
+        language = language_value
+
+    return ShotRequest(screen, out, theme, section, full, record_id=record_id, language=language)
