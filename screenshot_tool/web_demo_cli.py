@@ -197,4 +197,3 @@ class WebDemoCLI:
                 ended_at = last_event
                 AppLogger.info("Demo ended.")
                 return True, started_at, ended_at
-
