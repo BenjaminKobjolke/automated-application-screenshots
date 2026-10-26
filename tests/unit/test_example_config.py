@@ -1,9 +1,4 @@
-"""The shipped example config must stay loadable.
-
-config/example-full.json exercises every key there is, and CONFIG.md is its
-annotation (JSON has no comments). Loading it here is what stops it drifting
-away from the schema it is supposed to document.
-"""
+"""The shipped example configs must stay loadable by the parser."""
 
 from pathlib import Path
 
@@ -49,3 +44,17 @@ def test_the_network_example_loads():
     assert any(d.wants_video for d in settings.demos), "video demo"
     assert any(not d.wants_video for d in settings.demos), "stills-only demo"
     assert any(d.steps for d in settings.demos), "config-sent steps"
+
+
+def test_ax_suite_example_config_loads_web_pages_and_demo():
+    config_path = Path(__file__).resolve().parents[2] / "config" / "ax-suite.example.json"
+
+    settings = config.load_config(config_path)
+
+    assert settings.web is not None
+    assert settings.web.login_header is not None
+    assert settings.web.login_header.name == "X-Agent-Login"
+    assert settings.web.pages
+    assert settings.web.pages[0].path == "/admin/login"
+    assert settings.demos
+    assert settings.demos[0].path == "/admin/overview"

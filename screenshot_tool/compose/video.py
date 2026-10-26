@@ -51,3 +51,23 @@ def transcode_mp4(source: Path, settings: dict[str, Any], output: Path) -> None:
         str(output),
     ]
     ffmpeg.run(args)
+
+
+def cut_to_mp4(source: Path, start: float, end: float, fps: int, output: Path) -> None:
+    """Cut and encode a time range as an even-sized H.264 MP4."""
+    if start < 0 or end <= start:
+        raise ValueError("video cut must have a non-negative start before its end")
+    ffmpeg.run(
+        [
+            "-ss", str(start),
+            "-i", str(source),
+            "-t", str(end - start),
+            "-vf", f"fps={fps},scale=trunc(iw/2)*2:trunc(ih/2)*2",
+            "-c:v", "libx264",
+            "-preset", "slow",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            "-an",
+            str(output),
+        ]
+    )

@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, NoReturn
 
 from .live_config import LiveSettings, parse_live
+from .web_config import WebSettings, parse_web
 
 DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "config" / "keyboard-layout-watcher.json"
 
@@ -111,6 +112,8 @@ class DemoSpec:
     captions: tuple[tuple[str, str], ...] = ()
     # Network mode: device pixel ratio for in-app stills (1.0 = logical pixels).
     pixel_ratio: float = DEFAULT_PIXEL_RATIO
+    # Web mode starts a demo at this application-relative path.
+    path: str = "/"
     # Network mode: steps sent to the app verbatim instead of a demo registered
     # in the app (see the connector's docs/WRITING_DEMOS.md for the shape).
     steps: tuple[dict[str, Any], ...] = ()
@@ -320,6 +323,7 @@ class Settings:
     launch: LaunchSettings | None = None
     network: NetworkSettings | None = None
     live: LiveSettings | None = None
+    web: WebSettings | None = None
     demos: tuple[DemoSpec, ...] = ()
     compose: tuple[ComposeStep, ...] = ()
     # Folder with per-language demo text files (<texts_dir>/<lang>.json)
@@ -361,7 +365,12 @@ def expand(text: str, demo: "DemoSpec | None" = None, language: str | None = Non
 
 def _parse_launch(config_path: Path, data: dict) -> LaunchSettings:
     command = data.get("command")
-    if not isinstance(command, list) or not command or not all(isinstance(c, str) for c in command):
+    has_valid_command = (
+        isinstance(command, list)
+        and bool(command)
+        and all(isinstance(part, str) for part in command)
+    )
+    if not has_valid_command:
         _fail(config_path, "launch.command must be a non-empty list of strings")
     raw_env = data.get("env", {})
     if not isinstance(raw_env, dict):
@@ -387,7 +396,10 @@ def _parse_verify(config_path: Path, name: str, data: dict) -> tuple[VerifyCheck
         if kind == "exists":
             checks.append(VerifyCheck("exists", str(value)))
         elif kind == "contains":
-            if not isinstance(value, dict) or "file" not in value or "text" not in value:
+            has_file_and_text = (
+                isinstance(value, dict) and "file" in value and "text" in value
+            )
+            if not has_file_and_text:
                 _fail(config_path, f"demo '{name}' contains needs 'file' and 'text'")
             checks.append(VerifyCheck("contains", str(value["file"]), str(value["text"])))
         else:
@@ -446,6 +458,7 @@ def _parse_demo(config_path: Path, data: dict) -> DemoSpec:
         caption=data.get("caption"),
         captions=tuple((str(k), str(v)) for k, v in raw_captions.items()),
         pixel_ratio=float(data.get("pixel_ratio", DEFAULT_PIXEL_RATIO)),
+        path=data.get("path", "/"),
         steps=tuple(raw_steps),
     )
 
@@ -455,7 +468,12 @@ def _parse_network(config_path: Path, data: dict) -> NetworkSettings:
         _fail(config_path, "network.port must be an integer")
     timeout = data.get("accept_timeout", ACCEPT_TIMEOUT_S)
     # bool is an int subclass, and True as a timeout is a config typo, not 1 s.
-    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or timeout <= 0:
+    is_positive_timeout = (
+        not isinstance(timeout, bool)
+        and isinstance(timeout, (int, float))
+        and timeout > 0
+    )
+    if not is_positive_timeout:
         _fail(config_path, "network.accept_timeout must be a positive number of seconds")
     return NetworkSettings(port=data["port"], accept_timeout=float(timeout))
 
@@ -465,9 +483,20 @@ def _parse_demo_section(
 ) -> tuple[LaunchSettings | None, NetworkSettings | None, tuple[DemoSpec, ...]]:
     if "demos" not in data:
         return None, None, ()
-    if ("launch" in data) == ("network" in data):
-        _fail(config_path, "'demos' requires exactly one of a 'launch' or a 'network' section")
+    modes = [mode for mode in ("launch", "network", "web") if mode in data]
+    if len(modes) != 1:
+        _fail(
+            config_path,
+            "'demos' requires exactly one of a 'launch', 'network' or 'web' section",
+        )
     demos = tuple(_parse_demo(config_path, d) for d in data["demos"])
+    if modes[0] == "web":
+        for demo in demos:
+            if not isinstance(demo.path, str) or not demo.path.startswith("/"):
+                _fail(config_path, f"demo '{demo.name}' path must start with '/'")
+            if (demo.width is None) != (demo.height is None):
+                _fail(config_path, f"web demo '{demo.name}' must set both width and height")
+        return None, None, demos
     if "network" in data:
         return None, _parse_network(config_path, data["network"]), demos
     launch = _parse_launch(config_path, data["launch"])
@@ -542,7 +571,7 @@ def load_config(path: str | Path | None = None) -> Settings:
     try:
         data = json.loads(config_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as e:
-        raise SystemExit(f"ERROR: Invalid JSON in {config_path}: {e}")
+        raise SystemExit(f"ERROR: Invalid JSON in {config_path}: {e}") from e
 
     required = list(_ALWAYS_REQUIRED)
     if "languages" in data or "launch" in data:
@@ -555,6 +584,7 @@ def load_config(path: str | Path | None = None) -> Settings:
 
     launch, network, demos = _parse_demo_section(config_path, data)
     live = parse_live(config_path, data["live"]) if "live" in data else None
+    web = parse_web(config_path, data["web"]) if "web" in data else None
     compose = _parse_compose(config_path, data, demos)
 
     # A relative output_dir is relative to the config file, not to wherever the
@@ -583,6 +613,7 @@ def load_config(path: str | Path | None = None) -> Settings:
         launch=launch,
         network=network,
         live=live,
+        web=web,
         demos=demos,
         compose=compose,
         texts_dir=texts_dir,

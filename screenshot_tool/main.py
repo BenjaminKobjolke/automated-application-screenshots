@@ -15,6 +15,7 @@ Usage:
     uv run screenshot-tool --start-from de  # Start from German
     uv run screenshot-tool --delay 0.5  # Custom delay between captures
     uv run screenshot-tool --config config/other-app.json  # Other target app
+    uv run screenshot-tool --config config/ax-suite.local.json  # Capture configured web pages
     uv run screenshot-tool --config config/app.json --demo 1    # Record demo 1
     uv run screenshot-tool --config config/app.json --demo all  # Record all demos
     uv run screenshot-tool --config config/app.json --compose   # Build the artifacts
@@ -25,6 +26,7 @@ import argparse
 import io
 import sys
 from dataclasses import replace
+from pathlib import Path
 
 from . import config
 from .app_logger import AppLogger
@@ -62,6 +64,10 @@ def list_config() -> None:
             AppLogger.info(
                 f"  {demo.id:>3}  {demo.name:<24} {'  '.join(d for d in details if d)}"
             )
+    if settings.web is not None and settings.web.pages:
+        AppLogger.info("Web pages:")
+        for page in settings.web.pages:
+            AppLogger.info(f"  {page.name:<24} {page.path}")
     if settings.compose:
         AppLogger.info("\nCompose steps:")
         for step in settings.compose:
@@ -71,8 +77,13 @@ def list_config() -> None:
     if settings.language_names:
         AppLogger.info("\nLanguages:")
         ScreenshotCLI().list_languages()
-    if not (settings.demos or settings.compose or settings.language_names):
-        AppLogger.info("This config defines no demos, compose steps or languages.")
+    if not (
+        settings.demos
+        or settings.compose
+        or settings.language_names
+        or (settings.web is not None and settings.web.pages)
+    ):
+        AppLogger.info("This config defines no demos, web pages, compose steps or languages.")
 
 
 def main() -> int:
@@ -83,7 +94,7 @@ def main() -> int:
     """
     setup_utf8_console()
     parser = argparse.ArgumentParser(
-        description="Capture screenshots of a Windows application in multiple languages",
+    description="Capture screenshots of configured desktop and web applications",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -191,6 +202,14 @@ Examples:
         from . import compose
 
         return compose.run(args.compose)
+
+    if config.settings.web is not None:
+        from .web_pages_cli import WebPagesCLI
+
+        return WebPagesCLI(
+            config.settings.web,
+            output_dir=Path(args.output) if args.output else None,
+        ).run(start_from=args.start_from)
 
     # Create CLI instance
     cli = ScreenshotCLI(output_dir=args.output, delay=args.delay)

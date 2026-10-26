@@ -1,0 +1,28 @@
+{
+  "output_dir": "../screenshots/ax-suite",
+  "web": {
+    "base_url": "https://localhost/ax-suite-contest",
+    "login_header": {
+      "name": "X-Agent-Login",
+      "value": "PASTE-VIEWER-API-KEY-HERE"
+    },
+    "viewport": {"width": 1280, "height": 800},
+    "headless": true,
+    "channel": "msedge",
+    "ignore_https_errors": true,
+    "languages": ["de"],
+    "pages": [
+      {"name": "login", "path": "/admin/login"},
+      {"name": "overview", "path": "/admin/overview"}
+    ]
+  },
+  "demos": [
+    {
+      "id": 1,
+      "name": "overview",
+      "path": "/admin/overview",
+      "formats": ["gif", "mp4"],
+      "fps": 10
+    }
+  ]
+}

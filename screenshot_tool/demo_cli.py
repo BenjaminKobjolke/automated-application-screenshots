@@ -95,6 +95,11 @@ class DemoCLI:
                 AppLogger.error(f"No demo with id {demo_id} (available: {available})")
                 return 1
 
+        if settings.web is not None:
+            from .web_demo_cli import WebDemoCLI
+
+            return WebDemoCLI(settings.web).run(demos)
+
         with fancyzones.paused(settings.pause_fancyzones):
             if settings.network is not None:
                 # Phone app: it connects to us and records itself
