@@ -1,13 +1,14 @@
 # Automated Application Screenshots
 
-Automated screenshot capture tool for Windows applications. Two modes:
+Automated screenshot capture tool for Windows and web applications. It captures:
 
 - **Language screenshots** — cycles through an app's language dropdown and saves one screenshot per language to `screenshots/<language-code>/screenshot.png`.
 - **Demo recordings** — launches an app that implements the [automation interface](docs/AUTOMATION_INTERFACE.md), records a scripted demo of it, and exports animated **GIF/MP4** plus PNG stills.
 - **Composition** — joins the recordings into the artifacts a README actually shows: a captioned feature tour (rendered with Remotion), slideshow GIFs, inline feature GIFs — each optionally held to a size budget.
 - **Live Flutter sessions** — starts an app once, hot-reloads it on request, and captures named screens without restarting the tool.
+- **Web pages and demos** — opens configured websites in Playwright, saves viewport screenshots, and records connector-driven demos as GIF/MP4 plus PNG stills.
 
-The target application is defined by a JSON config file — either in `config/` here, or kept in the app's own repo (FastCalculator keeps its demo config in `calculator/tools/create_media/` with a `create_demos.bat` next to it). Ships with a config for **KeyboardLayoutWatcher** (41 languages).
+The target application is defined by a JSON config file — either in `config/` here, or kept in the app's own repo (FastCalculator keeps its demo config in `calculator/tools/create_media/` with a `create_demos.bat` next to it). Ships with configs for **KeyboardLayoutWatcher** (41 languages) and the **AX Suite** web target (`config/ax-suite.example.json`).
 
 ## What you can build
 
@@ -16,6 +17,7 @@ The target application is defined by a JSON config file — either in `config/` 
 | find out what this can do at all | [docs/DEMO_COOKBOOK.md](docs/DEMO_COOKBOOK.md) — every capability as a question |
 | write the config | [docs/CONFIG.md](docs/CONFIG.md) — every key, plus `config/example-full.json` |
 | make my app recordable | [docs/AUTOMATION_INTERFACE.md](docs/AUTOMATION_INTERFACE.md), or the [connector library](../automated-application-screenshots-python-connector) for Python apps |
+| capture a website | [docs/WEB.md](docs/WEB.md) — Playwright setup, AX Suite example, and web connector contract |
 | write the demo scripts | the connector's `docs/WRITING_DEMOS.md` |
 | record a mobile (Flutter) app | [docs/MOBILE.md](docs/MOBILE.md) — network mode: phone records, PC exports |
 | iterate on a Flutter screen | [docs/LIVE.md](docs/LIVE.md) — keep the app running and shoot named screens |
@@ -33,6 +35,7 @@ everything inside it** (steps, players, demo registry).
 - Python >= 3.10
 - [uv](https://github.com/astral-sh/uv) (`winget install astral-sh.uv`)
 - The target application must be running and its window visible
+- Web targets need Microsoft Edge (default) or Playwright Chromium; the web connector is needed only for scripted demos
 - **Node.js 18+ only for the `tour` compose step** (Remotion). Recording and the
   GIF steps are pure Python; run `npm install` in `composer/` before your first
   tour.
@@ -142,6 +145,18 @@ For fast Flutter UI iteration, configure a `live` section and run `screenshot-to
 A demo listing `languages` records once per language into `<output_dir>/demos/<demo_name>/<lang>/`; each run passes `--automation-demo-language <lang>` so the app can switch its UI language. With a top-level `"texts_dir": "texts"`, the matching `texts/<lang>.json` (placeholder → localized string, e.g. `{"price": "preis"}`) is also passed as `--automation-demo-texts`, letting demo scripts type localized text via `{placeholder}`s. Details: [docs/CONFIG.md](docs/CONFIG.md), [docs/AUTOMATION_INTERFACE.md](docs/AUTOMATION_INTERFACE.md).
 
 Keep hands off mouse/keyboard while recording — the window must stay frontmost and unobstructed. A config may contain both `languages` (dropdown mode, top-level) and `demos`.
+
+### Web projects
+
+Copy `config/ax-suite.example.json` to `config/ax-suite.local.json`, then add a viewer API key to `web.login_header.value`. The `.local.json` copy is ignored by Git because it contains a login secret. A plain web run captures the pages listed in the config; `--list` shows the configured pages and demos:
+
+```
+uv run screenshot-tool --config config/ax-suite.local.json
+uv run screenshot-tool --config config/ax-suite.local.json --list
+uv run screenshot-tool --config config/ax-suite.local.json --demo 1 --compose
+```
+
+The tool sends the login header only to the configured site origin. Page captures work without the connector; scripted web demos require the JavaScript/TypeScript connector to be embedded in the site. See [docs/WEB.md](docs/WEB.md) for setup and the WebSocket message contract.
 
 ## Configuration
 

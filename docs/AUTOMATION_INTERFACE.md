@@ -273,3 +273,9 @@ With the connector's live screen registry, `screenshot-tool --live` keeps the ap
 - [ ] App quits ~1 s after `demo_ended`
 - [ ] Keep hands off mouse/keyboard while recording (window must stay
       frontmost and unobstructed)
+
+## 9. Web apps
+
+Web applications use an embedded JavaScript/TypeScript connector and a browser-controlled transport rather than desktop CLI arguments and a window handle. The tool opens the configured page with `automation-demo`, `automation-demo-port`, and optional `automation-demo-language` query parameters. The connector connects to the tool's loopback WebSocket, receives the usual `start` payload, and sends `demo_started`, `screenshot`, `demo_ended`, and `error` events. The tool captures browser viewport stills and records the browser video; no `hwnd` or client-uploaded video is used.
+
+The complete message shapes, screenshot acknowledgement, navigation reconnect behavior, and timeouts are documented in [WEB.md](WEB.md#websocket-contract). Web support is additive: desktop launch mode and mobile network mode keep their existing protocols and formats.

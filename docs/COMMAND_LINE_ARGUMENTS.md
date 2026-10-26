@@ -13,7 +13,7 @@ falling back to a checkout next to the app's repo.
 | Option | Argument | Description | Default |
 |---|---|---|---|
 | `--config`, `-c` | `PATH` | App config JSON file describing the target application (see [CONFIG.md](CONFIG.md)) | `config/keyboard-layout-watcher.json` |
-| `--output`, `-o` | `DIR` | Output directory. Screenshots are saved as `<DIR>/<language-code>/<screenshot_filename>` | `output_dir` from config |
+| `--output`, `-o` | `DIR` | Output directory. Screenshots are saved as `<DIR>/<language-code>/<screenshot_filename>` in language mode, or below `<DIR>/pages/` for web page capture | `output_dir` from config |
 | `--start-from`, `-s` | `CODE` | Language code to start from; earlier languages are skipped. Useful to resume an aborted run | first language |
 | `--delay`, `-d` | `SECONDS` | Delay after each language change before capturing (float) | `delay_after_change` from config |
 | `--list`, `-l` | | List what the config can record and build — demos with their ids, groups, formats and languages, then the compose steps, then the language codes — and exit | |
@@ -22,6 +22,8 @@ falling back to a checkout next to the app's repo.
 | `--live` | | Start a configured Flutter app and read JSON-lines live commands from stdin until `stop` or EOF. Requires `live` in the config; not combinable with `--demo`, `--compose`, `--list` or `--start-from`. Logs go to stderr and command responses to stdout. See [LIVE.md](LIVE.md) | |
 | `--target` | `windows\|android_emulator` | Override `live.target` for this run; requires `--live` | `live.target` |
 | `--help`, `-h` | | Show usage help and exit | |
+
+A plain run with a web config captures each configured page as a viewport PNG, once per configured language when `web.languages` is set. Use `--start-from` to resume at a web language. Web demo recording and browser setup are described in [WEB.md](WEB.md).
 
 ## Examples
 
@@ -32,6 +34,9 @@ uv run screenshot-tool --start-from de                   # Resume from German
 uv run screenshot-tool --output ./imgs                   # Custom output directory
 uv run screenshot-tool --delay 0.5                       # Wait 0.5s between captures
 uv run screenshot-tool --config config/other-app.json    # Other target app
+uv run screenshot-tool --config config/ax-suite.local.json # Capture configured web pages
+uv run screenshot-tool --config config/ax-suite.local.json --list
+uv run screenshot-tool --config config/ax-suite.local.json --demo 1 --compose
 uv run screenshot-tool --config app.json --demo 1        # Record demo 1
 uv run screenshot-tool --config app.json --demo all      # Record every demo
 uv run screenshot-tool --config app.json --compose       # Build every artifact

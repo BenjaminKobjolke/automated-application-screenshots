@@ -8,6 +8,8 @@ A config can define either or both modes:
 - **Demo recordings** — requires the `demos` + `launch` sections (see [AUTOMATION_INTERFACE.md](AUTOMATION_INTERFACE.md) for the app-side contract).
 - **Live Flutter sessions** — requires a `live` section (see [LIVE.md](LIVE.md)); it can be used alongside `network` and `demos`.
 
+Web targets use a `web` section instead of desktop window settings. A plain run captures its configured pages; web demos use the browser and WebSocket contract in [WEB.md](WEB.md). The `demos` array requires exactly one of `launch`, `network`, or `web`. A web-only config may omit `demos` when it only captures pages. `process_name` and `title_substring` are not required for web targets.
+
 Always required: `output_dir`. `process_name` and `title_substring` are required in language mode and launch (demo) mode; network mode has no window to find. A missing file, invalid JSON, or missing required key aborts with a clear error message.
 
 ## Example: language screenshots
@@ -58,6 +60,42 @@ Always required: `output_dir`. `process_name` and `title_substring` are required
 }
 ```
 
+## Example: web pages and demos
+
+The shipped [AX Suite example](../config/ax-suite.example.json) shows a complete web config. Copy it to `config/ax-suite.local.json`, set `web.login_header.value`, and keep the local copy private. The `.gitignore` rule excludes `config/*.local.json` because these files may contain login secrets.
+
+```json
+{
+  "output_dir": "../screenshots/ax-suite",
+  "web": {
+    "base_url": "https://localhost/ax-suite-contest",
+    "login_header": {"name": "X-Agent-Login", "value": "PASTE-VIEWER-API-KEY-HERE"},
+    "viewport": {"width": 1280, "height": 800},
+    "headless": true,
+    "channel": "msedge",
+    "ignore_https_errors": true,
+    "languages": ["de"],
+    "pages": [{"name": "overview", "path": "/admin/overview"}]
+  },
+  "demos": [
+    {"id": 1, "name": "overview", "path": "/admin/overview", "formats": ["gif", "mp4"]}
+  ]
+}
+```
+
+### `web` (object, web target)
+
+- `base_url` (required): HTTP or HTTPS URL with a host. The trailing slash is removed; paths and query parameters may be included.
+- `login_header` (optional): `name` and `value`, both non-empty strings. The value is sent only to the configured application origin and is hidden from settings representations and logs. Store real credentials only in an ignored local config.
+- `viewport` (default `1280` × `800`): positive integer `width` and `height`.
+- `headless` (default `true`): show the browser window when false.
+- `channel` (default `"msedge"`): Playwright browser channel. Use `"chromium"` to use Playwright's downloaded Chromium.
+- `ignore_https_errors` (default `false`): accept self-signed HTTPS certificates when true.
+- `languages` (optional list): capture every configured page once per language, setting the browser locale and `Accept-Language`.
+- `pages` (optional list): named pages with unique non-empty `name` values and paths beginning with `/`. A plain run saves viewport PNGs below `pages/` (and a language subfolder when configured).
+
+Web browser setup and the AX Suite walkthrough are in [WEB.md](WEB.md).
+
 ## Values
 
 ### `process_name` (string)
@@ -105,11 +143,15 @@ How to start the target application.
 
 ### `network` (object, demo mode)
 
-Alternative to `launch` for apps without a desktop window (mobile Flutter apps, see [AUTOMATION_INTERFACE.md](AUTOMATION_INTERFACE.md) section 7). The tool listens on `port` (all interfaces), the app on the phone connects, records its own video and captures stills in-app. `demos` needs exactly one of `launch` or `network`.
+Alternative to `launch` for apps without a desktop window (mobile Flutter apps, see [AUTOMATION_INTERFACE.md](AUTOMATION_INTERFACE.md) section 7). The tool listens on `port` (all interfaces), the app on the phone connects, records its own video and captures stills in-app. `demos` needs exactly one of `launch`, `network`, or `web`.
 
 - `port` (integer) — TCP port to listen on, e.g. `8765`.
 
 In network mode `fps` only drives the GIF derived from the uploaded mp4 (the device encoder decides the video frame rate), `width`/`height`/`crop` are unused, and two extra demo keys apply: `pixel_ratio` and `steps` (below). Example: `config/example-network.json`.
+
+### `web` demo mode
+
+Use `"web": { ... }` instead of `launch` or `network` for browser targets. A demo's optional `path` (default `"/"`) must start with `/` and is appended to `web.base_url`; existing query parameters are preserved. `width` and `height`, when supplied, must be supplied together and override the web viewport. Demo `languages`, `app_settings`, `steps`, `verify`, `group`, and captions retain their existing meaning. See [WEB.md](WEB.md) for the connector protocol and video behavior.
 
 ### `live` (object, optional)
 
@@ -140,6 +182,7 @@ Example `texts/de.json`:
 One entry per recordable demo:
 
 - `id` (integer) — passed to the app as `--automation-demo <id>`; selects which app-side demo script runs. **Need not be unique** — several entries may share an `id` to record the same app-side demo at different sizes/settings (see [Variants](#variants-of-one-demo-eg-landscape--portrait)). `--demo all` records every entry; `--demo <id>` records every entry with that id.
+- `path` (string, web mode, default `"/"`) — application-relative URL path where this demo starts, such as `"/admin/overview"`.
 - `name` (string) — output subfolder name. Must be distinct per entry (it, not `id`, keys the output folder), so same-`id` variants need different names.
 - `fps` (integer, default 10) — capture frame rate; ~10 is the realistic ceiling.
 - `formats` (array of `"gif"`/`"mp4"`/`"png"`, default `["gif"]`) — exports to produce. `"png"` means stills only; in network mode it also tells the app not to screen-record (no consent prompt on the phone).
