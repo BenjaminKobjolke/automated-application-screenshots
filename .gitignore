@@ -224,3 +224,6 @@ code_analysis_results/
 tools/analyze_code_config.bat
 /tmp/
 .reasonix/
+
+# Local app configs can contain login header secrets.
+config/*.local.json
