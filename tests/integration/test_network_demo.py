@@ -6,10 +6,9 @@ import socket
 import threading
 from pathlib import Path
 
-from screenshot_tool import config
+from screenshot_tool import config, network_demo_cli
 from screenshot_tool.demo_cli import DemoCLI
 from screenshot_tool.demo_server import DemoServer
-from screenshot_tool import network_demo_cli
 from screenshot_tool.network_demo_cli import NetworkDemoCLI
 
 PNG = b"\x89PNG\r\n\x1a\nfake"
@@ -77,7 +76,7 @@ def test_network_run_writes_stills_video_and_gif(tmp_path, monkeypatch):
     monkeypatch.setattr(
         network_demo_cli,
         "clip_to_gif",
-        lambda src, settings, out: gifs.append((src, out)) or out.write_bytes(b"GIF"),
+        lambda src, _settings, out: gifs.append((src, out)) or out.write_bytes(b"GIF"),
     )
 
     received: list[dict] = []
@@ -117,12 +116,12 @@ def test_demo_cli_dispatches_to_network_mode(tmp_path, monkeypatch):
     config.load_config(cfg)
     seen = {}
     monkeypatch.setattr(
-        NetworkDemoCLI, "run", lambda self, demos: 0 if [d.id for d in demos] == [1] else 1
+        NetworkDemoCLI, "run", lambda _self, demos: 0 if [d.id for d in demos] == [1] else 1
     )
     monkeypatch.setattr(
         NetworkDemoCLI,
         "__init__",
-        lambda self, server, accept_timeout: seen.update(accept_timeout=accept_timeout),
+        lambda _self, _server, accept_timeout: seen.update(accept_timeout=accept_timeout),
     )
     assert DemoCLI().run("all") == 0
     # The configured window must reach the runner, not the 30 s default.

@@ -54,9 +54,8 @@ def test_running_process_is_restarted_when_block_raises(monkeypatch):
     popen = MagicMock()
     monkeypatch.setattr(fancyzones.subprocess, "Popen", popen)
 
-    with pytest.raises(RuntimeError, match="recording failed"):
-        with fancyzones.paused():
-            raise RuntimeError("recording failed")
+    with pytest.raises(RuntimeError, match="recording failed"), fancyzones.paused():
+        raise RuntimeError("recording failed")
 
     popen.assert_called_once()
 

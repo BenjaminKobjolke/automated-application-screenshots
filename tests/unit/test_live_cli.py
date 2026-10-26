@@ -6,16 +6,16 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from screenshot_tool.demo_server import ScreenInfo
 from screenshot_tool.live_cli import LiveCLI
 from screenshot_tool.live_session import (
     LiveError,
+    LiveSession,
     ReloadOutcome,
     ReloadResult,
-    LiveSession,
     ShotRequest,
     ShotTheme,
 )
-from screenshot_tool.demo_server import ScreenInfo
 
 
 def _cli(lines: list[str], session: LiveSession) -> tuple[LiveCLI, io.StringIO]:

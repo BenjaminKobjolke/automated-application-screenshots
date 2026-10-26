@@ -11,9 +11,15 @@ from pathlib import Path
 import pytest
 
 from screenshot_tool.android_emulator import AndroidEmulator
-from screenshot_tool.live_config import LiveSettings, LiveTarget
-from screenshot_tool.live_session import LiveError, LiveSession, ReloadOutcome, ShotRequest, ShotTheme
 from screenshot_tool.demo_server import ScreenInfo
+from screenshot_tool.live_config import LiveSettings, LiveTarget
+from screenshot_tool.live_session import (
+    LiveError,
+    LiveSession,
+    ReloadOutcome,
+    ShotRequest,
+    ShotTheme,
+)
 
 FAKE_DAEMON = Path(__file__).parents[1] / "fixtures" / "fake_flutter_daemon.py"
 
