@@ -11,9 +11,8 @@ from pathlib import Path
 
 from . import config
 from .app_logger import AppLogger
-# ACCEPT_TIMEOUT_S is defined in config (NetworkSettings defaults to it) and
-# imported here so both demo runners keep reading their timeouts from one place.
-from .config import ACCEPT_TIMEOUT_S, DemoSpec
+from .config import ACCEPT_TIMEOUT_S as ACCEPT_TIMEOUT_S
+from .config import DemoSpec
 
 EVENT_TIMEOUT_S = 60.0
 DEMO_CAP_S = 300.0

@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import time
 from collections.abc import Mapping, Sequence
+from contextlib import suppress
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -74,7 +75,12 @@ class AndroidEmulator:
         serials: list[str] = []
         for line in result.stdout.splitlines()[1:]:
             columns = line.split()
-            if len(columns) >= 2 and columns[0].startswith("emulator-") and columns[1] == "device":
+            is_online_emulator = (
+                len(columns) >= 2
+                and columns[0].startswith("emulator-")
+                and columns[1] == "device"
+            )
+            if is_online_emulator:
                 serials.append(columns[0])
         return serials
 
@@ -179,8 +185,6 @@ class AndroidEmulator:
         except psutil.NoSuchProcess:
             return
         for process in [*children, root]:
-            try:
+            with suppress(psutil.NoSuchProcess, psutil.AccessDenied):
                 process.kill()
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
         psutil.wait_procs([*children, root], timeout=_PROCESS_STOP_TIMEOUT)

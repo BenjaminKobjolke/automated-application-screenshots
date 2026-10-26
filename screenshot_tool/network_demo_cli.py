@@ -112,9 +112,10 @@ class NetworkDemoCLI:
             if event is None:
                 continue
             last_event = time.monotonic()
+            is_screenshot_event = event.event == "screenshot" and event.name and event.png is not None
             if event.event == "demo_started":
                 AppLogger.info(f"Demo {event.demo} started.")
-            elif event.event == "screenshot" and event.name and event.png is not None:
+            elif is_screenshot_event:
                 (out_dir / f"{event.name}.png").write_bytes(event.png)
                 AppLogger.info(f"  {out_dir / f'{event.name}.png'}")
             elif event.event == "error":

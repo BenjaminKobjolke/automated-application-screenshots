@@ -49,13 +49,20 @@ def _string_list(
     config_path: Path, data: dict[str, Any], key: str, default: list[str]
 ) -> tuple[str, ...]:
     value = data.get(key, default)
-    if (
-        not isinstance(value, list)
-        or not value
-        or not all(isinstance(item, str) for item in value)
-    ):
+    is_non_empty_string_list = (
+        isinstance(value, list)
+        and bool(value)
+        and all(isinstance(item, str) for item in value)
+    )
+    if not is_non_empty_string_list:
         _fail(config_path, f"live.{key} must be a non-empty list of strings")
     return tuple(value)
+
+
+def _is_valid_port(port: Any) -> bool:
+    if isinstance(port, bool) or not isinstance(port, int):
+        return False
+    return 1 <= port <= 65535
 
 
 def _run_args(config_path: Path, data: dict[str, Any]) -> tuple[str, ...]:
@@ -80,7 +87,7 @@ def parse_live(config_path: Path, data: Any) -> LiveSettings:
         _fail(config_path, "live.target must be 'windows' or 'android_emulator'")
 
     port = data.get("port")
-    if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
+    if not _is_valid_port(port):
         _fail(config_path, "live.port must be an integer from 1 to 65535")
 
     avd = data.get("avd")
@@ -102,11 +109,12 @@ def parse_live(config_path: Path, data: Any) -> LiveSettings:
         _fail(config_path, "live.app_settings must be an object")
 
     start_timeout = data.get("start_timeout", 600)
-    if (
-        isinstance(start_timeout, bool)
-        or not isinstance(start_timeout, (int, float))
-        or start_timeout <= 0
-    ):
+    is_positive_timeout = (
+        not isinstance(start_timeout, bool)
+        and isinstance(start_timeout, (int, float))
+        and start_timeout > 0
+    )
+    if not is_positive_timeout:
         _fail(config_path, "live.start_timeout must be a positive number of seconds")
 
     return LiveSettings(
@@ -124,7 +132,7 @@ def parse_live(config_path: Path, data: Any) -> LiveSettings:
 
 def automation_host(target: LiveTarget, port: int) -> str:
     """Derive the host address the app uses to reach the tool."""
-    if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
+    if not _is_valid_port(port):
         raise ValueError("port must be an integer from 1 to 65535")
     hosts = {
         LiveTarget.WINDOWS: "127.0.0.1",

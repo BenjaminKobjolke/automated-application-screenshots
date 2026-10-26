@@ -72,11 +72,12 @@ class LiveCLI:
             return kind is not LiveCommand.STOP
         except (json.JSONDecodeError, ValueError, TypeError) as error:
             response = {"ok": False, "error": str(error)}
-            if (
+            has_valid_request_command = (
                 "request" in locals()
                 and isinstance(request, dict)
                 and isinstance(request.get("command"), str)
-            ):
+            )
+            if has_valid_request_command:
                 response["command"] = request["command"]
                 if "id" in request:
                     response["id"] = request["id"]

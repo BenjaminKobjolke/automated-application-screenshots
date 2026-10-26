@@ -5,8 +5,8 @@ It can also resize the window again a few seconds later, racing the app's demo s
 """
 
 import subprocess
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Iterator
 
 import psutil
 

@@ -9,8 +9,8 @@ import subprocess
 import threading
 import time
 from collections import deque
+from contextlib import suppress
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 import psutil
@@ -161,7 +161,10 @@ class FlutterDaemon:
             return DaemonResult(False, str(response.error))
         result = response.result
         code = result.get("code") if isinstance(result, dict) else None
-        if not isinstance(code, int) or isinstance(code, bool) or code != 0:
+        is_invalid_exit_code = (
+            not isinstance(code, int) or isinstance(code, bool) or code != 0
+        )
+        if is_invalid_exit_code:
             message = result.get("message") if isinstance(result, dict) else None
             return DaemonResult(False, str(message or result))
         return DaemonResult(True, "Flutter restart completed")
@@ -242,18 +245,12 @@ class FlutterDaemon:
         except psutil.NoSuchProcess:
             return
         for child in children:
-            try:
+            with suppress(psutil.NoSuchProcess, psutil.AccessDenied):
                 child.kill()
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
-        try:
+        with suppress(psutil.NoSuchProcess, psutil.AccessDenied):
             root.kill()
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            pass
         gone, alive = psutil.wait_procs([*children, root], timeout=2)
         del gone
         for process in alive:
-            try:
+            with suppress(psutil.NoSuchProcess, psutil.AccessDenied):
                 process.kill()
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass

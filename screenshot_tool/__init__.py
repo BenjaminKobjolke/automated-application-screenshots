@@ -12,8 +12,8 @@ __all__ = [
     "AppLogger",
     "DropdownAutomation",
     "DropdownReader",
+    "ScreenshotCLI",
     "Settings",
     "WindowCapture",
-    "ScreenshotCLI",
     "WindowFinder",
 ]

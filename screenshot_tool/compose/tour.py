@@ -102,7 +102,8 @@ def _props(step: ComposeStep, chapters: tuple[DemoSpec, ...], language: str | No
                 "caption": demo.caption_for(language),
             }
         )
-        if height is None and demo.width and demo.height:
+        has_recorded_dimensions = bool(demo.width and demo.height)
+        if height is None and has_recorded_dimensions:
             # Keep the recorded aspect ratio at the composition's width.
             height = round(width * demo.height / demo.width)
 
