@@ -56,5 +56,17 @@ def test_ax_suite_example_config_loads_web_pages_and_demo():
     assert settings.web.login_header.name == "X-Agent-Login"
     assert settings.web.pages
     assert settings.web.pages[0].path == "/admin/login"
-    assert settings.demos
-    assert settings.demos[0].path == "/admin/overview"
+    assert [(page.name, page.path) for page in settings.web.pages] == [
+        ("login", "/admin/login"),
+        ("overview", "/admin/overview"),
+        ("contest-editor-common", "/admin/contest/newedit/common/<CONTEST-ID>"),
+        ("contest-editor-design", "/admin/contest/newedit/design/<CONTEST-ID>"),
+        ("contest-statistics", "/admin/contests/<CONTEST-ID>/statistics"),
+    ]
+    assert [(demo.id, demo.name, demo.path) for demo in settings.demos] == [
+        (1, "overview", "/admin/overview"),
+        (2, "contest-walkthrough", "/contests/<CONTEST-ID>/"),
+        (3, "contest-editor", "/admin/contest/newedit/common/<CONTEST-ID>"),
+    ]
+    assert all(demo.formats == settings.demos[0].formats for demo in settings.demos)
+    assert all(demo.fps == 10 for demo in settings.demos)

@@ -13,7 +13,10 @@
     "languages": ["de"],
     "pages": [
       {"name": "login", "path": "/admin/login"},
-      {"name": "overview", "path": "/admin/overview"}
+      {"name": "overview", "path": "/admin/overview"},
+      {"name": "contest-editor-common", "path": "/admin/contest/newedit/common/<CONTEST-ID>"},
+      {"name": "contest-editor-design", "path": "/admin/contest/newedit/design/<CONTEST-ID>"},
+      {"name": "contest-statistics", "path": "/admin/contests/<CONTEST-ID>/statistics"}
     ]
   },
   "demos": [
@@ -21,6 +24,20 @@
       "id": 1,
       "name": "overview",
       "path": "/admin/overview",
+      "formats": ["gif", "mp4"],
+      "fps": 10
+    },
+    {
+      "id": 2,
+      "name": "contest-walkthrough",
+      "path": "/contests/<CONTEST-ID>/",
+      "formats": ["gif", "mp4"],
+      "fps": 10
+    },
+    {
+      "id": 3,
+      "name": "contest-editor",
+      "path": "/admin/contest/newedit/common/<CONTEST-ID>",
       "formats": ["gif", "mp4"],
       "fps": 10
     }
