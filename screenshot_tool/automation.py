@@ -5,7 +5,7 @@ import time
 import pyautogui
 
 from . import config
-from .window_finder import WindowFinder
+from .window_geometry import WindowGeometry
 
 
 class DropdownAutomation:
@@ -33,7 +33,7 @@ class DropdownAutomation:
         if pos is None:
             raise RuntimeError("Config has no 'dropdown_relative_pos'; language mode requires it")
 
-        rect = WindowFinder.get_window_rect(self.hwnd)
+        rect = WindowGeometry.get_window_rect(self.hwnd)
         window_left, window_top = rect[0], rect[1]
 
         return (window_left + pos[0], window_top + pos[1])

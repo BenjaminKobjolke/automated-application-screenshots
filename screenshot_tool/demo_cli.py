@@ -5,7 +5,6 @@ server port -> find its window -> record frames from ``demo_started`` to
 ``demo_ended`` (saving stills on ``screenshot`` events) -> export.
 """
 
-import os
 import subprocess
 import tempfile
 import time
@@ -13,7 +12,7 @@ from pathlib import Path
 
 from . import config, desktop_demo, fancyzones
 from .app_logger import AppLogger
-from .config import DemoSpec, LaunchSettings, build_launch_command, write_app_settings_file
+from .config import DemoSpec
 from .demo_common import (
     _clear_stale_stills,
     _run_label,
@@ -22,38 +21,17 @@ from .demo_common import (
     run_all,
     texts_file_for,
 )
+from .demo_launch import build_launch_command, child_env, write_app_settings_file
 from .demo_server import DemoServer
 from .network_demo_cli import NetworkDemoCLI
 from .recorder import Recorder
 from .window_finder import WindowFinder
+from .window_geometry import WindowGeometry
+from .window_stacking import WindowStacking
 
 TAIL_S = 0.5
 
 __all__ = ["DemoCLI", "_run_label"]
-
-
-def _child_env(
-    launch: LaunchSettings, demo: DemoSpec, language: str | None
-) -> dict[str, str] | None:
-    """The environment the target app is launched with.
-
-    The tool runs under uv, which puts ITS virtualenv first on PATH - and that
-    venv has none of the recorded app's dependencies, so an app launched
-    through a plain `python` would fail to import itself. Dropping it here
-    saves every consumer the same three lines of shell.
-    """
-    if launch.inherit_env and not launch.env:
-        return None
-    env = dict(os.environ)
-    if not launch.inherit_env:
-        venv = env.pop("VIRTUAL_ENV", None)
-        if venv:
-            scripts = os.path.join(venv, "Scripts")
-            parts = [p for p in env.get("PATH", "").split(os.pathsep) if p and p != scripts]
-            env["PATH"] = os.pathsep.join(parts)
-    for key, value in launch.env:
-        env[key] = config.expand(value, demo, language)
-    return env
 
 
 class DemoCLI:
@@ -119,9 +97,9 @@ class DemoCLI:
         out_dir.mkdir(parents=True, exist_ok=True)
         _clear_stale_stills(out_dir)
         if launch.minimize_all:
-            WindowFinder.minimize_all()
+            WindowStacking.minimize_all()
         AppLogger.info(f"Launching: {' '.join(cmd)}")
-        proc = subprocess.Popen(cmd, cwd=launch.cwd, env=_child_env(launch, demo, language))
+        proc = subprocess.Popen(cmd, cwd=launch.cwd, env=child_env(launch, demo, language))
         recorder: Recorder | None = None
         try:
             if not desktop_demo._accept_connection(server, proc):
@@ -134,12 +112,12 @@ class DemoCLI:
                 return False
             AppLogger.info(f"Recording window '{WindowFinder.get_window_title(hwnd)}'")
             WindowFinder.bring_to_foreground(hwnd)
-            WindowFinder.move_into_work_area(hwnd)
+            WindowGeometry.move_into_work_area(hwnd)
             # Screen-region capture grabs whatever is drawn at the window's rect, so a
             # previous run's still-closing window (same app, same position) could bleed
             # in. Pin the target on top — SetForegroundWindow is unreliable, HWND_TOPMOST
             # via SetWindowPos is not — so it always sits above any leftover window.
-            WindowFinder.set_topmost(hwnd)
+            WindowStacking.set_topmost(hwnd)
             time.sleep(0.3)
 
             recorder = Recorder(hwnd, demo.fps, stills_dir=out_dir, crop=demo.crop)

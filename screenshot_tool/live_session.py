@@ -41,13 +41,12 @@ class LiveSession:
         self.server = server if server is not None else DemoServer(port=settings.port)
         self.daemon = daemon if daemon is not None else FlutterDaemon(settings)
         self.app_link = LiveAppLink(self.server, self.daemon)
-        self.emulator = (
-            emulator
-            if emulator is not None
-            else AndroidEmulator()
-            if settings.target is LiveTarget.ANDROID_EMULATOR
-            else None
-        )
+        if emulator is not None:
+            self.emulator = emulator
+        elif settings.target is LiveTarget.ANDROID_EMULATOR:
+            self.emulator = AndroidEmulator()
+        else:
+            self.emulator = None
         self._device: str | None = None
         self._started = False
 
@@ -134,13 +133,7 @@ class LiveSession:
         )
         if event.png is None:
             raise LiveError(f"app returned no PNG for screen {request.screen!r}")
-        path = Path(request.out)
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(event.png)
-        except OSError as error:
-            raise LiveError(f"could not write screenshot {path}: {error}") from error
-        return path
+        return request.save_png(event.png)
 
     def stop(self) -> None:
         """Close the connection and stop only processes owned by this session."""

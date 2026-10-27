@@ -8,7 +8,7 @@ from .app_logger import AppLogger
 
 
 class WindowStacking:
-    """Provide window stacking and foreground operations."""
+    """Provide window minimization and stacking operations."""
 
     @staticmethod
     def should_minimize(hwnd: int) -> bool:
@@ -51,11 +51,3 @@ class WindowStacking:
             0,
             win32_api.SWP_NOMOVE | win32_api.SWP_NOSIZE | win32_api.SWP_NOACTIVATE,
         )
-
-    @staticmethod
-    def bring_to_foreground(hwnd: int) -> bool:
-        """Restore a minimized window and bring it to the foreground."""
-        user32 = win32_api.user32
-        user32.ShowWindow(hwnd, win32_api.SW_RESTORE if user32.IsIconic(hwnd) else win32_api.SW_SHOW)
-        user32.SetForegroundWindow(hwnd)
-        return True

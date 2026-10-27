@@ -1,6 +1,6 @@
 """Shared configuration data for compose tests."""
 
-import json
+from config_helpers import write_config
 
 from screenshot_tool import config
 
@@ -20,12 +20,6 @@ BASE = {
 
 def with_compose(*steps):
     return {**BASE, "compose": list(steps)}
-
-
-def write_config(tmp_path, data):
-    path = tmp_path / "app.json"
-    path.write_text(json.dumps(data), encoding="utf-8")
-    return path
 
 
 def load(tmp_path, data):

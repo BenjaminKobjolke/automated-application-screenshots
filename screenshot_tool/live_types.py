@@ -57,6 +57,16 @@ class ShotRequest:
         if self.section is not None and self.full:
             raise ValueError("section and full cannot be combined")
 
+    def save_png(self, png: bytes) -> Path:
+        """Save the captured PNG, creating its parent directory when needed."""
+        path = Path(self.out)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(png)
+        except OSError as error:
+            raise LiveError(f"could not write screenshot {path}: {error}") from error
+        return path
+
 
 def build_navigation_payload(request: ShotRequest) -> dict[str, object]:
     """Build the app command that navigates to the requested screen state."""

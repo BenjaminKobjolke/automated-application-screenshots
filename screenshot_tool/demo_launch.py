@@ -1,9 +1,33 @@
 """Build demo launch commands and write their settings files."""
 
 import json
+import os
 from pathlib import Path
 
+from . import config
 from .config_models import DemoSpec, LaunchSettings
+
+
+def child_env(launch: LaunchSettings, demo: DemoSpec, language: str | None) -> dict[str, str] | None:
+    """The environment the target app is launched with.
+
+    The tool runs under uv, which puts ITS virtualenv first on PATH - and that
+    venv has none of the recorded app's dependencies, so an app launched
+    through a plain `python` would fail to import itself. Dropping it here
+    saves every consumer the same three lines of shell.
+    """
+    if launch.inherit_env and not launch.env:
+        return None
+    env = dict(os.environ)
+    if not launch.inherit_env:
+        venv = env.pop("VIRTUAL_ENV", None)
+        if venv:
+            scripts = os.path.join(venv, "Scripts")
+            parts = [p for p in env.get("PATH", "").split(os.pathsep) if p and p != scripts]
+            env["PATH"] = os.pathsep.join(parts)
+    for key, value in launch.env:
+        env[key] = config.expand(value, demo, language)
+    return env
 
 
 def build_launch_command(

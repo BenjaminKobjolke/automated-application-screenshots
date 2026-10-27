@@ -6,14 +6,13 @@ from ctypes import wintypes
 import psutil
 
 from . import win32_api
-from .window_geometry import WindowGeometry, clamp_to_work_area
-from .window_stacking import WindowStacking
+from .window_geometry import clamp_to_work_area
 
 __all__ = ["WindowFinder", "clamp_to_work_area"]
 
 
-class WindowFinder(WindowStacking, WindowGeometry):
-    """Find Windows application windows using various strategies."""
+class WindowFinder:
+    """Find Windows application windows and bring them to the foreground."""
 
     @staticmethod
     def _find_visible_window(predicate) -> int | None:
@@ -71,3 +70,12 @@ class WindowFinder(WindowStacking, WindowGeometry):
     def is_window_valid(hwnd: int) -> bool:
         """Check whether a window handle is still valid."""
         return bool(win32_api.user32.IsWindow(hwnd))
+
+    @staticmethod
+    def bring_to_foreground(hwnd: int) -> bool:
+        """Restore a minimized window and bring it to the foreground."""
+        user32 = win32_api.user32
+        command = win32_api.SW_RESTORE if user32.IsIconic(hwnd) else win32_api.SW_SHOW
+        user32.ShowWindow(hwnd, command)
+        user32.SetForegroundWindow(hwnd)
+        return True

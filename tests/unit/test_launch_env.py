@@ -5,7 +5,7 @@ import os
 
 import pytest
 
-from screenshot_tool import config, demo_cli
+from screenshot_tool import config, demo_cli, demo_launch
 from screenshot_tool.config import DemoSpec, LaunchSettings, VerifyCheck
 
 BASE = {
@@ -32,7 +32,7 @@ DEMO = DemoSpec(id=3, name="tour-a")
 def test_the_tools_own_virtualenv_is_dropped(monkeypatch):
     monkeypatch.setenv("VIRTUAL_ENV", r"C:\tool\.venv")
     monkeypatch.setenv("PATH", os.pathsep.join([r"C:\tool\.venv\Scripts", r"C:\Python313"]))
-    env = demo_cli._child_env(LaunchSettings(command=("x",), cwd=None), DEMO, None)
+    env = demo_launch.child_env(LaunchSettings(command=("x",), cwd=None), DEMO, None)
     assert env is not None
     assert "VIRTUAL_ENV" not in env
     assert env["PATH"] == r"C:\Python313"
@@ -41,7 +41,7 @@ def test_the_tools_own_virtualenv_is_dropped(monkeypatch):
 def test_inherit_env_keeps_it(monkeypatch):
     monkeypatch.setenv("VIRTUAL_ENV", r"C:\tool\.venv")
     launch = LaunchSettings(command=("x",), cwd=None, inherit_env=True)
-    assert demo_cli._child_env(launch, DEMO, None) is None  # nothing to change
+    assert demo_launch.child_env(launch, DEMO, None) is None  # nothing to change
 
 
 def test_launch_env_expands_placeholders(monkeypatch, tmp_path):
@@ -51,14 +51,14 @@ def test_launch_env_expands_placeholders(monkeypatch, tmp_path):
         cwd=None,
         env=(("APP_PROFILE", "{temp}/demo-{demo_id}-{name}"),),
     )
-    env = demo_cli._child_env(launch, DEMO, None)
+    env = demo_launch.child_env(launch, DEMO, None)
     assert env is not None
     assert env["APP_PROFILE"] == f"{tmp_path}/demo-3-tour-a"
 
 
 def test_launch_env_expands_the_language(tmp_path):
     launch = LaunchSettings(command=("x",), cwd=None, env=(("APP_LANG", "{lang}"),))
-    env = demo_cli._child_env(launch, DEMO, "de")
+    env = demo_launch.child_env(launch, DEMO, "de")
     assert env is not None
     assert env["APP_LANG"] == "de"
 

@@ -1,6 +1,6 @@
 """Shared demo configuration data for demo config tests."""
 
-import json
+from config_helpers import write_config
 
 LANGUAGE_ONLY = {
     "process_name": "app.exe",
@@ -54,7 +54,3 @@ WITH_APP_SETTINGS = {
 }
 
 
-def write_config(tmp_path, data):
-    path = tmp_path / "app.json"
-    path.write_text(json.dumps(data), encoding="utf-8")
-    return path

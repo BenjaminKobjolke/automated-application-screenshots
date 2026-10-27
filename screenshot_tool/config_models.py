@@ -29,7 +29,7 @@ class LaunchSettings:
     # holds none of the app's dependencies. Set true only if the app really
     # wants the tool's environment.
     inherit_env: bool = False
-    # Clear the desktop before the app starts; see WindowFinder.minimize_all.
+    # Clear the desktop before the app starts; see WindowStacking.minimize_all.
     minimize_all: bool = True
 
 
