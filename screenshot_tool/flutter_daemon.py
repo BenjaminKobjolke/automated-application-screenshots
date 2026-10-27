@@ -2,74 +2,29 @@
 
 from __future__ import annotations
 
-import json
 import queue
 import shutil
 import subprocess
 import threading
 import time
 from collections import deque
-from contextlib import suppress
-from dataclasses import dataclass
 from typing import Any
 
-import psutil
-
+from .daemon_protocol import DaemonMessage, DaemonResult, encode_request, parse_daemon_line
 from .live_config import LiveSettings, automation_host
+from .process_tree import kill_process_tree
 
 _LOG_LIMIT = 100
 _STOP_TIMEOUT = 3.0
 
 
-def encode_request(request: dict[str, Any]) -> str:
-    # Flutter silently drops stdin lines unless each request is wrapped in an array.
-    return json.dumps([request]) + "\n"
-
-
-@dataclass(frozen=True)
-class DaemonMessage:
-    """One structured event or response from Flutter's daemon."""
-
-    event: str | None
-    params: dict[str, Any]
-    response_id: str | None = None
-    result: Any = None
-    error: Any = None
-
-
-@dataclass(frozen=True)
-class DaemonResult:
-    """Outcome of one daemon RPC request."""
-
-    success: bool
-    message: str = ""
-    timed_out: bool = False
-
-
-def parse_daemon_line(line: str) -> tuple[tuple[DaemonMessage, ...], str | None]:
-    """Decode a daemon line, returning ordinary console output as log text."""
-    try:
-        value = json.loads(line)
-    except json.JSONDecodeError:
-        return (), line.rstrip("\r\n")
-    if not isinstance(value, list):
-        return (), line.rstrip("\r\n")
-
-    messages: list[DaemonMessage] = []
-    for item in value:
-        if not isinstance(item, dict):
-            continue
-        params = item.get("params")
-        messages.append(
-            DaemonMessage(
-                event=item.get("event") if isinstance(item.get("event"), str) else None,
-                params=params if isinstance(params, dict) else {},
-                response_id=str(item["id"]) if "id" in item else None,
-                result=item.get("result"),
-                error=item.get("error"),
-            )
-        )
-    return tuple(messages), None
+__all__ = [
+    "DaemonMessage",
+    "DaemonResult",
+    "FlutterDaemon",
+    "encode_request",
+    "parse_daemon_line",
+]
 
 
 class FlutterDaemon:
@@ -239,18 +194,4 @@ class FlutterDaemon:
 
     @staticmethod
     def _kill_process_tree(pid: int) -> None:
-        try:
-            root = psutil.Process(pid)
-            children = root.children(recursive=True)
-        except psutil.NoSuchProcess:
-            return
-        for child in children:
-            with suppress(psutil.NoSuchProcess, psutil.AccessDenied):
-                child.kill()
-        with suppress(psutil.NoSuchProcess, psutil.AccessDenied):
-            root.kill()
-        gone, alive = psutil.wait_procs([*children, root], timeout=2)
-        del gone
-        for process in alive:
-            with suppress(psutil.NoSuchProcess, psutil.AccessDenied):
-                process.kill()
+        kill_process_tree(pid)

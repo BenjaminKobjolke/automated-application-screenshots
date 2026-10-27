@@ -3,72 +3,28 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
 
 from .android_emulator import AndroidEmulator
-from .demo_server import DemoEvent, DemoServer, ScreenInfo
+from .demo_server import DemoServer, ScreenInfo
 from .flutter_daemon import FlutterDaemon
+from .live_app_link import _POLL_SECONDS, LiveAppLink
 from .live_config import LiveSettings, LiveTarget, device_id
+from .live_types import (
+    LiveError,
+    ReloadOutcome,
+    ReloadResult,
+    ShotRequest,
+    ShotTheme,
+    build_navigation_payload,
+    build_screenshot_payload,
+)
 
 _COMMAND_TIMEOUT = 60.0
-_POLL_SECONDS = 0.1
 _EXIT_GRACE_SECONDS = 0.5
 _UNRESPONSIVE_MESSAGE = "Flutter app stopped responding to hot reload and hot restart"
 
-
-class LiveError(RuntimeError):
-    """A live-session operation failed, with relevant build output if present."""
-
-    def __init__(self, message: str, output: str = "") -> None:
-        super().__init__(message)
-        self.message = message
-        self.output = output
-
-
-class ReloadOutcome(Enum):
-    """The level of Flutter restart needed to apply the current source."""
-
-    RELOADED = "reloaded"
-    RESTARTED = "restarted"
-    RELAUNCHED = "relaunched"
-    COMPILE_ERROR = "compile_error"
-    UNRESPONSIVE = "unresponsive"
-    FAILED = "failed"
-
-
-@dataclass(frozen=True)
-class ReloadResult:
-    """Typed outcome returned by a live reload request."""
-
-    outcome: ReloadOutcome
-    message: str = ""
-    output: str = ""
-
-
-class ShotTheme(str, Enum):
-    """Theme requested for one live screenshot."""
-
-    DARK = "dark"
-    LIGHT = "light"
-
-
-@dataclass(frozen=True)
-class ShotRequest:
-    """Options for capturing a named live screen."""
-
-    screen: str
-    out: str | Path
-    theme: ShotTheme | None = None
-    section: str | None = None
-    full: bool = False
-    record_id: int | None = None
-    language: str | None = None
-
-    def __post_init__(self) -> None:
-        if self.section is not None and self.full:
-            raise ValueError("section and full cannot be combined")
+__all__ = ["LiveError", "LiveSession", "ReloadOutcome", "ReloadResult", "ShotRequest", "ShotTheme"]
 
 
 class LiveSession:
@@ -84,6 +40,7 @@ class LiveSession:
         self.settings = settings
         self.server = server if server is not None else DemoServer(port=settings.port)
         self.daemon = daemon if daemon is not None else FlutterDaemon(settings)
+        self.app_link = LiveAppLink(self.server, self.daemon)
         self.emulator = (
             emulator
             if emulator is not None
@@ -111,7 +68,7 @@ class LiveSession:
                 self._device = device_id(self.settings.target)
             self.daemon.start(self._device)
             self._wait_for_app_start()
-            self._accept_and_reset(float(self.settings.start_timeout))
+            self.app_link.accept_and_reset(self.settings, float(self.settings.start_timeout))
             self._started = True
             return self._device
         except Exception as error:
@@ -135,7 +92,7 @@ class LiveSession:
         hot_restart = self.daemon.restart(full=True, timeout=_COMMAND_TIMEOUT)
         if hot_restart.success:
             try:
-                self._accept_and_reset(_COMMAND_TIMEOUT)
+                self.app_link.accept_and_reset(self.settings, _COMMAND_TIMEOUT)
             except LiveError as error:
                 return ReloadResult(ReloadOutcome.FAILED, error.message, error.output)
             return ReloadResult(ReloadOutcome.RESTARTED, hot_restart.message)
@@ -159,38 +116,21 @@ class LiveSession:
     def screens(self) -> tuple[ScreenInfo, ...]:
         """Ask the app for its registered screens."""
         self._require_started()
-        event = self._request(
-            {"command": "list_screens"},
-            expected="screens",
-        )
+        event = self.app_link.request({"command": "list_screens"}, "screens", _COMMAND_TIMEOUT)
         return event.screens or ()
 
     def shot(self, request: ShotRequest) -> Path:
         """Navigate to a named screen and save the app-provided PNG."""
         self._require_started()
         if request.theme is not None:
-            self._request(
-                {"command": "set_theme", "theme": request.theme.value},
-                expected="theme_set",
+            self.app_link.request(
+                {"command": "set_theme", "theme": request.theme.value}, "theme_set", _COMMAND_TIMEOUT
             )
-        navigation: dict[str, object] = {"command": "navigate", "screen": request.screen}
-        if request.section is not None:
-            navigation["section"] = request.section
-        if request.record_id is not None:
-            navigation["record_id"] = request.record_id
-        if request.language is not None:
-            navigation["language"] = request.language
-        self._request(navigation, expected="navigated")
-        screenshot: dict[str, object] = {
-            "command": "screenshot",
-            "name": request.screen,
-            "pixel_ratio": 1.0,
-        }
-        if request.full:
-            screenshot["full"] = True
-        event = self._request(
-            screenshot,
-            expected="screenshot",
+        self.app_link.request(
+            build_navigation_payload(request), expected="navigated", timeout=_COMMAND_TIMEOUT
+        )
+        event = self.app_link.request(
+            build_screenshot_payload(request), expected="screenshot", timeout=_COMMAND_TIMEOUT
         )
         if event.png is None:
             raise LiveError(f"app returned no PNG for screen {request.screen!r}")
@@ -218,33 +158,6 @@ class LiveSession:
         if not self.daemon.wait_for_started(float(self.settings.start_timeout)):
             raise LiveError("Flutter did not report app.started before timeout", self.daemon.output)
 
-    def _accept_and_reset(self, timeout: float) -> None:
-        if not self.server.accept(timeout):
-            raise LiveError("Flutter app did not connect before timeout", self.daemon.output)
-        self.server.send({"command": "reset", "settings": self.settings.app_settings})
-        self._await_event("reset_done", timeout)
-
-    def _request(self, request: dict[str, object], expected: str) -> DemoEvent:
-        self.server.send(request)
-        return self._await_event(expected, _COMMAND_TIMEOUT)
-
-    def _await_event(self, expected: str, timeout: float) -> DemoEvent:
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            if not self.daemon.is_running():
-                raise LiveError("Flutter process exited while waiting for the app", self.daemon.output)
-            try:
-                event = self.server.next_event(min(_POLL_SECONDS, deadline - time.monotonic()))
-            except (ConnectionError, OSError) as error:
-                raise LiveError(str(error), self.daemon.output) from error
-            if event is None:
-                continue
-            if event.event == "error":
-                raise LiveError(event.message or "app command failed")
-            if event.event == expected:
-                return event
-        raise LiveError(f"timed out waiting for app event {expected!r}", self.daemon.output)
-
     def _require_started(self) -> None:
         if not self._started:
             raise LiveError("live session is not started")
@@ -266,7 +179,7 @@ class LiveSession:
             assert self._device is not None
             self.daemon.start(self._device)
             self._wait_for_app_start()
-            self._accept_and_reset(float(self.settings.start_timeout))
+            self.app_link.accept_and_reset(self.settings, float(self.settings.start_timeout))
         except Exception as error:
             return ReloadResult(
                 ReloadOutcome.COMPILE_ERROR,

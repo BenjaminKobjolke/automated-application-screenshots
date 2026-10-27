@@ -51,12 +51,8 @@ from .demo_config import (
 from .demo_config import (
     _parse_verify as _parse_verify,
 )
-from .demo_config import (
-    build_launch_command as build_launch_command,
-)
-from .demo_config import (
-    write_app_settings_file as write_app_settings_file,
-)
+from .demo_launch import build_launch_command as build_launch_command
+from .demo_launch import write_app_settings_file as write_app_settings_file
 from .live_config import LiveSettings as LiveSettings
 from .live_config import parse_live
 from .web_config import WebSettings as WebSettings

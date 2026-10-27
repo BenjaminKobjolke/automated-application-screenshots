@@ -12,9 +12,7 @@ together.
 
 from __future__ import annotations
 
-import json
 import shutil
-import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -22,34 +20,12 @@ from typing import Any
 from .. import config
 from ..app_logger import AppLogger
 from ..config import ComposeStep, DemoSpec
-from . import video
+from . import remotion, video
 from .fit import encode_to_budget, format_size
 
-COMPOSER_DIR = Path(__file__).resolve().parents[2] / "composer"
-COMPOSITION_ID = "Tour"
 DEFAULTS: dict[str, Any] = {"width": 1280, "fps": 30, "caption_seconds": 5.0, "crf": 18}
 # Cards are short: they are a title, not a chapter.
 CARD_SECONDS = 3.0
-
-
-def _npx() -> str:
-    """The npx executable, or a readable explanation of its absence."""
-    found = shutil.which("npx")
-    if not found:
-        raise RuntimeError(
-            "The 'tour' compose step renders with Remotion, which needs Node.js "
-            "(18 or newer) on PATH - 'npx' was not found. Install Node, then run "
-            "'npm install' in " + str(COMPOSER_DIR) + ". Recording and the GIF "
-            "steps do not need Node."
-        )
-    return found
-
-
-def _installed() -> None:
-    if not (COMPOSER_DIR / "node_modules").is_dir():
-        raise RuntimeError(
-            f"Remotion is not installed yet - run 'npm install' in {COMPOSER_DIR}"
-        )
 
 
 def _clip_seconds(path: Path) -> float:
@@ -126,27 +102,6 @@ def _props(step: ComposeStep, chapters: tuple[DemoSpec, ...], language: str | No
     }
 
 
-def _render(props: dict, crf: int, destination: Path) -> None:
-    """Run the Remotion render, streaming its output into the tool's log."""
-    with tempfile.TemporaryDirectory() as work:
-        props_file = Path(work) / "props.json"
-        props_file.write_text(json.dumps(props), encoding="utf-8")
-        command = [
-            _npx(), "remotion", "render", "src/index.ts", COMPOSITION_ID, str(destination),
-            f"--props={props_file}",
-            # The recordings folder IS the public dir, so clips are referenced
-            # where they already live instead of being copied in.
-            f"--public-dir={Path(config.settings.output_dir)}",
-            "--codec=h264",
-            f"--crf={crf}",
-            "--log=info",
-        ]
-        AppLogger.info(f"Rendering {len(props['clips'])} chapters with Remotion...")
-        result = subprocess.run(command, cwd=str(COMPOSER_DIR), shell=False)
-    if result.returncode:
-        raise RuntimeError(f"Remotion render failed ({result.returncode})")
-
-
 def _output_path(step: ComposeStep, language: str | None) -> Path:
     if language and "{lang}" not in step.output:
         raise RuntimeError(
@@ -159,7 +114,7 @@ def _output_path(step: ComposeStep, language: str | None) -> Path:
 
 def render_tour(step: ComposeStep) -> None:
     """Build the tour(s) this compose step describes."""
-    _installed()
+    remotion.ensure_installed()
     chapters = config.settings.demos_in_group(step.group or "")
     if not chapters:
         raise RuntimeError(f"compose step '{step.output}' has no chapters in group {step.group!r}")
@@ -173,7 +128,7 @@ def render_tour(step: ComposeStep) -> None:
         AppLogger.info("Chapters: " + ", ".join(d.name for d in chapters))
         with tempfile.TemporaryDirectory() as work:
             rendered = Path(work) / "tour.mp4"
-            _render(props, int(merged["crf"]), rendered)
+            remotion.render(props, int(merged["crf"]), rendered)
             _deliver(step, props, rendered, output)
 
 

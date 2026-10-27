@@ -10,7 +10,7 @@ import json
 import pytest
 
 from screenshot_tool import config
-from screenshot_tool.compose import ffmpeg, tour, video
+from screenshot_tool.compose import ffmpeg, remotion, tour, video
 
 CONFIG = {
     "process_name": "python.exe",
@@ -133,9 +133,9 @@ def test_per_language_output_needs_a_placeholder(loaded):
 
 
 def test_missing_node_is_an_actionable_error(monkeypatch):
-    monkeypatch.setattr(tour.shutil, "which", lambda name: None)
+    monkeypatch.setattr(remotion.shutil, "which", lambda name: None)
     with pytest.raises(RuntimeError, match="needs Node.js"):
-        tour._npx()
+        remotion.npx()
 
 
 # --- the transcode that meets a budget ----------------------------------------
