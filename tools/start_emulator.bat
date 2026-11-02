@@ -21,6 +21,14 @@ if not defined AVD (
 )
 
 echo Starting emulator %AVD% ...
+if "%TICKETS_WATCHER_COMMAND_RUN%"=="1" (
+    powershell -NoProfile -Command "$ErrorActionPreference = 'Stop'; try { $arguments = '-avd ' + [char]34 + $env:AVD + [char]34 + ' -no-snapshot-save -crash-report-mode disabled ' + $env:EMULATOR_EXTRA_ARGS; Start-Process -FilePath $env:EMULATOR -ArgumentList $arguments; exit 0 } catch { [Console]::Error.WriteLine($_); exit 1 }"
+    if errorlevel 1 (
+        echo ERROR: failed to launch the Android emulator.
+        exit /b 1
+    )
+    exit /b 0
+)
 :: Detached on purpose: the emulator keeps running after this bat ends.
 start "Android Emulator %AVD%" "%EMULATOR%" -avd "%AVD%" -no-snapshot-save -crash-report-mode disabled %EMULATOR_EXTRA_ARGS%
 exit /b %ERRORLEVEL%
