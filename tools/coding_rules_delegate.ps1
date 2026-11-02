@@ -20,31 +20,10 @@ if (-not (Test-Path -LiteralPath $PromptFile -PathType Leaf)) {
 $prompt = Get-Content -LiteralPath $PromptFile -Raw -Encoding UTF8
 
 if ($Backend -eq 'codex') {
-    $command = 'codex'
-    $arguments = @('exec', '--dangerously-bypass-approvals-and-sandbox', $prompt)
+    & codex exec --dangerously-bypass-approvals-and-sandbox $prompt *> $LogFile
 }
 else {
-    $command = 'reasonix'
-    $arguments = @('run', '--auto', $prompt)
+    & reasonix run --auto $prompt *> $LogFile
 }
 
-$global:LASTEXITCODE = $null
-try {
-    & $command @arguments *> $LogFile
-    $exitCode = $LASTEXITCODE
-}
-catch {
-    $message = "Failed to launch $command`: $($_.Exception.Message)"
-    Add-Content -LiteralPath $LogFile -Value $message -Encoding UTF8
-    Write-Error $message
-    exit 1
-}
-
-if ($null -eq $exitCode) {
-    $message = "Failed to launch $command`: no native exit code was returned."
-    Add-Content -LiteralPath $LogFile -Value $message -Encoding UTF8
-    Write-Error $message
-    exit 1
-}
-
-exit $exitCode
+exit $LASTEXITCODE
