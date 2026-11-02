@@ -19,8 +19,10 @@
     "analyze_code_config.example.bat",
     "fix_ruff_issues.bat",
     "graphify_update.bat",
+    "reset_emulator.bat",
     "run_integration_tests.bat",
-    "run_tests.bat"
+    "run_tests.bat",
+    "start_emulator.bat"
   ],
   "analysis_commands_seen": {
     "scripts": [
