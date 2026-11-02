@@ -2,6 +2,7 @@
 setlocal
 :: Start an Android emulator with the same flags the live tool uses.
 :: Usage: tools\start_emulator.bat [avd_name]   (default: first AVD from emulator -list-avds)
+:: Extra emulator flags can be passed in EMULATOR_EXTRA_ARGS (reset_emulator.bat uses -wipe-data).
 
 set "EMULATOR="
 for /f "delims=" %%P in ('where emulator 2^>nul') do if not defined EMULATOR set "EMULATOR=%%P"
@@ -21,5 +22,5 @@ if not defined AVD (
 
 echo Starting emulator %AVD% ...
 :: Detached on purpose: the emulator keeps running after this bat ends.
-start "Android Emulator %AVD%" "%EMULATOR%" -avd "%AVD%" -no-snapshot-save -crash-report-mode disabled
+start "Android Emulator %AVD%" "%EMULATOR%" -avd "%AVD%" -no-snapshot-save -crash-report-mode disabled %EMULATOR_EXTRA_ARGS%
 exit /b %ERRORLEVEL%
