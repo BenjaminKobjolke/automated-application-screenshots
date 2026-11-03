@@ -88,11 +88,12 @@ The shipped [AX Suite example](../config/ax-suite.example.json) shows a complete
 - `base_url` (required): HTTP or HTTPS URL with a host. The trailing slash is removed; paths and query parameters may be included.
 - `login_header` (optional): `name` and `value`, both non-empty strings. The value is sent only to the configured application origin and is hidden from settings representations and logs. Store real credentials only in an ignored local config.
 - `viewport` (default `1280` × `800`): positive integer `width` and `height`.
+- `mobile_viewport` (default `390` × `844`): optional positive integer `width` and `height`, used only with `--device mobile`.
 - `headless` (default `true`): show the browser window when false.
 - `channel` (default `"msedge"`): Playwright browser channel. Use `"chromium"` to use Playwright's downloaded Chromium.
 - `ignore_https_errors` (default `false`): accept self-signed HTTPS certificates when true.
 - `languages` (optional list): capture every configured page once per language, setting the browser locale and `Accept-Language`.
-- `pages` (optional list): named pages with unique non-empty `name` values and paths beginning with `/`. A plain run saves viewport PNGs below `pages/` (and a language subfolder when configured).
+- `pages` (optional list): named pages with unique non-empty `name` values and paths beginning with `/`. A plain run saves viewport PNGs below `pages/` (and a language subfolder when configured); mobile captures use a separate `pages/mobile/` folder.
 
 Web browser setup and the AX Suite walkthrough are in [WEB.md](WEB.md).
 

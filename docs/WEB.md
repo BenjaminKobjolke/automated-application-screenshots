@@ -39,6 +39,19 @@ uv run screenshot-tool --config config/ax-suite.local.json --demo all --compose
 
 The plain run saves the configured viewport screenshots under `output_dir/pages/de/`. Demos save stills and requested MP4/GIF outputs under `output_dir/demos/<demo name>/de/`. Demo recording requires the web connector and its registered demo scripts to be embedded by the target site.
 
+## Mobile screenshots
+
+Capture configured web pages with an emulated phone by adding `--device mobile` to a plain run:
+
+```powershell
+uv run screenshot-tool --config config/ax-suite.local.json --device mobile
+uv run --project <tool-dir> screenshot-tool --config path/to/web-config.json --device mobile
+```
+
+The built-in phone profile uses a 390 × 844 viewport, mobile browser mode, touch input, a device scale factor of 3, and an Android Chrome user agent. These settings let responsive CSS and mobile-specific scripts behave as they do on a phone. Set the optional `web.mobile_viewport` object to override the phone viewport size; omitted width or height values use the built-in size.
+
+Phone screenshots go to `output_dir/pages/mobile/`, or `output_dir/pages/mobile/<lang>/` when languages are configured. Desktop screenshots keep using `output_dir/pages/` or `output_dir/pages/<lang>/`. Desktop remains the default, so existing configs need no changes. The option applies to plain web page capture; web demos remain desktop only.
+
 ## WebSocket contract
 
 The browser opens the configured application URL with these query parameters appended to the demo path. Existing query parameters are retained:

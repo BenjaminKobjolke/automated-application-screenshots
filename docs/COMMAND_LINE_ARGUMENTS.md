@@ -13,7 +13,8 @@ falling back to a checkout next to the app's repo.
 | Option | Argument | Description | Default |
 |---|---|---|---|
 | `--config`, `-c` | `PATH` | App config JSON file describing the target application (see [CONFIG.md](CONFIG.md)) | `config/keyboard-layout-watcher.json` |
-| `--output`, `-o` | `DIR` | Output directory. Screenshots are saved as `<DIR>/<language-code>/<screenshot_filename>` in language mode, or below `<DIR>/pages/` for web page capture | `output_dir` from config |
+| `--output`, `-o` | `DIR` | Output directory. Screenshots are saved as `<DIR>/<language-code>/<screenshot_filename>` in language mode, or below `<DIR>/pages/` for web page capture (`pages/mobile/` for mobile capture) | `output_dir` from config |
+| `--device` | `desktop\|mobile` | Capture configured web pages as desktop or an emulated phone; mobile applies to a plain web run only. See [Mobile screenshots](WEB.md#mobile-screenshots) | `desktop` |
 | `--start-from`, `-s` | `CODE` | Language code to start from; earlier languages are skipped. Useful to resume an aborted run | first language |
 | `--delay`, `-d` | `SECONDS` | Delay after each language change before capturing (float) | `delay_after_change` from config |
 | `--list`, `-l` | | List what the config can record and build — demos with their ids, groups, formats and languages, then the compose steps, then the language codes — and exit | |
@@ -35,6 +36,7 @@ uv run screenshot-tool --output ./imgs                   # Custom output directo
 uv run screenshot-tool --delay 0.5                       # Wait 0.5s between captures
 uv run screenshot-tool --config config/other-app.json    # Other target app
 uv run screenshot-tool --config config/ax-suite.local.json # Capture configured web pages
+uv run screenshot-tool --config config/ax-suite.local.json --device mobile # Capture phone-sized web pages
 uv run screenshot-tool --config config/ax-suite.local.json --list
 uv run screenshot-tool --config config/ax-suite.local.json --demo 1 --compose
 uv run screenshot-tool --config app.json --demo 1        # Record demo 1

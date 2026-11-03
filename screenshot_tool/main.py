@@ -35,6 +35,7 @@ from .config_listing import list_config
 from .live_cli import LiveCLI
 from .live_config import LiveTarget
 from .live_session import LiveSession
+from .web_config import WebDevice
 
 
 def setup_utf8_console() -> None:
@@ -64,6 +65,7 @@ Examples:
   uv run screenshot-tool --delay 0.5        # Wait 0.5s between captures
   uv run screenshot-tool --config config/other-app.json  # Other target app
   uv run screenshot-tool -c config/app.json --demo all --compose  # Record + build
+  uv run screenshot-tool --config config/web.json --device mobile  # Capture web pages as a phone
         """,
     )
 
@@ -75,6 +77,12 @@ Examples:
     )
 
     parser.add_argument("--output", "-o", help="Output directory (default: from config)")
+    parser.add_argument(
+        "--device",
+        choices=[device.value for device in WebDevice],
+        default=WebDevice.DESKTOP.value,
+        help="Capture web pages as desktop or as an emulated phone (plain web run only)",
+    )
 
     parser.add_argument(
         "--start-from",
@@ -131,9 +139,16 @@ Examples:
         parser.error("--target requires --live")
     if (args.demo or args.compose) and (args.list or args.start_from):
         parser.error("--demo/--compose cannot be combined with --list or --start-from")
+    if args.device == WebDevice.MOBILE.value and (
+        args.live or args.demo or args.compose or args.list
+    ):
+        parser.error("--device mobile cannot be combined with --live, --demo, --compose or --list")
 
     if args.config:
         config.load_config(args.config)
+
+    if args.device == WebDevice.MOBILE.value and config.settings.web is None:
+        parser.error("--device mobile requires a config with a web section")
 
     if args.live:
         live_settings = config.settings.live
@@ -168,6 +183,7 @@ Examples:
         return WebPagesCLI(
             config.settings.web,
             output_dir=Path(args.output) if args.output else None,
+            device=WebDevice(args.device),
         ).run(start_from=args.start_from)
 
     # Create CLI instance

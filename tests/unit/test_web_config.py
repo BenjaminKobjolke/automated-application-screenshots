@@ -6,7 +6,12 @@ from pathlib import Path
 import pytest
 
 from screenshot_tool.config import load_config
-from screenshot_tool.web_config import DEFAULT_CHANNEL, DEFAULT_VIEWPORT, parse_web
+from screenshot_tool.web_config import (
+    DEFAULT_CHANNEL,
+    DEFAULT_MOBILE_VIEWPORT,
+    DEFAULT_VIEWPORT,
+    parse_web,
+)
 
 
 def write_config(tmp_path: Path, data: dict) -> Path:
@@ -21,6 +26,7 @@ def test_web_config_defaults_and_derived_origin(tmp_path):
     assert settings.base_url == "https://example.test/app"
     assert settings.origin == "https://example.test"
     assert settings.viewport == DEFAULT_VIEWPORT
+    assert settings.mobile_viewport == DEFAULT_MOBILE_VIEWPORT
     assert settings.channel == DEFAULT_CHANNEL
     assert settings.headless is True
     assert settings.ignore_https_errors is False
@@ -36,6 +42,7 @@ def test_web_config_parses_pages_language_and_login_header(tmp_path):
             "base_url": "http://example.test:8080/root",
             "login_header": {"name": "X-Login", "value": "secret-value"},
             "viewport": {"width": 1024, "height": 768},
+            "mobile_viewport": {"width": 360, "height": 740},
             "languages": ["de"],
             "pages": [{"name": "overview", "path": "/admin/overview"}],
         },
@@ -46,6 +53,7 @@ def test_web_config_parses_pages_language_and_login_header(tmp_path):
     assert settings.login_header.name == "X-Login"
     assert settings.login_header.value == "secret-value"
     assert settings.languages == ("de",)
+    assert settings.mobile_viewport == (360, 740)
     assert settings.pages[0].name == "overview"
     assert "secret-value" not in repr(settings)
 
@@ -65,6 +73,18 @@ def test_web_config_rejects_unknown_keys(tmp_path):
 def test_web_viewport_dimensions_must_be_positive_integers(tmp_path, viewport):
     with pytest.raises(SystemExit, match=r"web\.viewport"):
         parse_web(tmp_path / "app.json", {"base_url": "https://example.test", "viewport": viewport})
+
+
+@pytest.mark.parametrize(
+    "viewport",
+    [{"width": True, "height": 800}, {"width": 0, "height": 800}],
+)
+def test_web_mobile_viewport_dimensions_must_be_positive_integers(tmp_path, viewport):
+    with pytest.raises(SystemExit, match=r"web\.mobile_viewport"):
+        parse_web(
+            tmp_path / "app.json",
+            {"base_url": "https://example.test", "mobile_viewport": viewport},
+        )
 
 
 def test_web_pages_must_have_unique_names(tmp_path):

@@ -11,15 +11,21 @@ from . import config
 from .app_logger import AppLogger
 from .demo_common import _clear_stale_stills
 from .web_browser import WebBrowser
-from .web_config import WebSettings
+from .web_config import WebDevice, WebSettings
 
 
 class WebPagesCLI:
     """Capture every configured page for each configured browser locale."""
 
-    def __init__(self, web: WebSettings, output_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        web: WebSettings,
+        output_dir: Path | None = None,
+        device: WebDevice = WebDevice.DESKTOP,
+    ) -> None:
         self._web = web
         self._output_dir = output_dir
+        self._device = device
 
     def run(self, start_from: str | None = None) -> int:
         """Capture pages and return nonzero when any navigation fails."""
@@ -27,6 +33,8 @@ class WebPagesCLI:
             AppLogger.error("Web config has no pages to capture.")
             return 1
         output_root = (self._output_dir or Path(config.settings.output_dir)) / "pages"
+        if self._device is WebDevice.MOBILE:
+            output_root /= WebDevice.MOBILE.value
         languages: tuple[str | None, ...] = self._web.languages or (None,)
         if start_from is not None and self._web.languages:
             try:
@@ -37,14 +45,15 @@ class WebPagesCLI:
             languages = self._web.languages[start_index:]
         total = len(self._web.pages) * len(languages)
         failed = 0
-        AppLogger.info(f"Capturing {total} web page(s)...")
+        device_label = f" as {self._device.value}" if self._device is WebDevice.MOBILE else ""
+        AppLogger.info(f"Capturing {total} web page(s){device_label}...")
         try:
             with WebBrowser(self._web) as browser:
                 for language in languages:
                     output_dir = output_root / language if language else output_root
                     output_dir.mkdir(parents=True, exist_ok=True)
                     _clear_stale_stills(output_dir)
-                    context = browser.create_context(locale=language)
+                    context = browser.create_context(locale=language, device=self._device)
                     try:
                         page = context.new_page()
                         for target in self._web.pages:

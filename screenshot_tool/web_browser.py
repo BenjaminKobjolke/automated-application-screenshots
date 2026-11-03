@@ -10,8 +10,10 @@ from playwright.sync_api import Browser, BrowserContext, Error, Playwright, Rout
 
 from .app_logger import AppLogger
 from .config import DemoSpec
-from .web_config import WebSettings
+from .web_config import WebDevice, WebSettings
 
+_PHONE_DEVICE = "Pixel 7"
+_PHONE_SCALE = 3
 _AUTOMATION_PARAMETERS = {
     "automation-demo",
     "automation-demo-port",
@@ -88,24 +90,35 @@ class WebBrowser:
         viewport: tuple[int, int] | None = None,
         locale: str | None = None,
         record_video_dir: Path | None = None,
+        device: WebDevice = WebDevice.DESKTOP,
     ) -> BrowserContext:
         """Create a context with configured viewport and origin-scoped login."""
         if self._browser is None:
             raise RuntimeError("WebBrowser must be entered before creating a context")
+        dimensions = viewport or (
+            self._web.mobile_viewport if device is WebDevice.MOBILE else self._web.viewport
+        )
+        width, height = dimensions
         options: dict[str, Any] = {
-            "viewport": {
-                "width": (viewport or self._web.viewport)[0],
-                "height": (viewport or self._web.viewport)[1],
-            },
+            "viewport": {"width": width, "height": height},
             "ignore_https_errors": self._web.ignore_https_errors,
         }
+        if device is WebDevice.MOBILE:
+            if self._playwright is None:
+                raise RuntimeError("WebBrowser must be entered before creating a context")
+            options.update(
+                is_mobile=True,
+                has_touch=True,
+                device_scale_factor=_PHONE_SCALE,
+                user_agent=self._playwright.devices[_PHONE_DEVICE]["user_agent"],
+            )
         if locale:
             options["locale"] = locale
         if record_video_dir is not None:
             options["record_video_dir"] = str(record_video_dir)
             options["record_video_size"] = {
-                "width": (viewport or self._web.viewport)[0],
-                "height": (viewport or self._web.viewport)[1],
+                "width": width,
+                "height": height,
             }
         context = self._browser.new_context(**options)
         if self._web.login_header is not None:

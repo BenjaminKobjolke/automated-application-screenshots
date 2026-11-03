@@ -1,12 +1,21 @@
 """Typed and validated settings for web screenshot targets."""
 
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 from typing import Any, NoReturn
 from urllib.parse import urlsplit, urlunsplit
 
 DEFAULT_VIEWPORT = (1280, 800)
+DEFAULT_MOBILE_VIEWPORT = (390, 844)
 DEFAULT_CHANNEL = "msedge"
+
+
+class WebDevice(Enum):
+    """Device profile used to capture configured web pages."""
+
+    DESKTOP = "desktop"
+    MOBILE = "mobile"
 
 
 @dataclass(frozen=True)
@@ -31,6 +40,7 @@ class WebSettings:
 
     base_url: str
     viewport: tuple[int, int] = DEFAULT_VIEWPORT
+    mobile_viewport: tuple[int, int] = DEFAULT_MOBILE_VIEWPORT
     headless: bool = True
     channel: str = DEFAULT_CHANNEL
     ignore_https_errors: bool = False
@@ -49,6 +59,7 @@ _WEB_KEYS = {
     "base_url",
     "login_header",
     "viewport",
+    "mobile_viewport",
     "headless",
     "channel",
     "ignore_https_errors",
@@ -70,11 +81,13 @@ def _object(config_path: Path, value: Any, label: str, allowed: set[str]) -> dic
     return value
 
 
-def _parse_viewport(config_path: Path, raw: Any) -> tuple[int, int]:
-    viewport = _object(config_path, raw, "web.viewport", {"width", "height"})
-    dimensions = (viewport.get("width", DEFAULT_VIEWPORT[0]), viewport.get("height", DEFAULT_VIEWPORT[1]))
+def _parse_viewport(
+    config_path: Path, raw: Any, label: str, default: tuple[int, int]
+) -> tuple[int, int]:
+    viewport = _object(config_path, raw, label, {"width", "height"})
+    dimensions = (viewport.get("width", default[0]), viewport.get("height", default[1]))
     if any(isinstance(value, bool) or not isinstance(value, int) or value <= 0 for value in dimensions):
-        _fail(config_path, "web.viewport width and height must be positive integers")
+        _fail(config_path, f"{label} width and height must be positive integers")
     return dimensions
 
 
@@ -141,7 +154,15 @@ def parse_web(config_path: Path, data: Any) -> WebSettings:
 
     return WebSettings(
         base_url=base_url,
-        viewport=_parse_viewport(config_path, values.get("viewport", {})),
+        viewport=_parse_viewport(
+            config_path, values.get("viewport", {}), "web.viewport", DEFAULT_VIEWPORT
+        ),
+        mobile_viewport=_parse_viewport(
+            config_path,
+            values.get("mobile_viewport", {}),
+            "web.mobile_viewport",
+            DEFAULT_MOBILE_VIEWPORT,
+        ),
         headless=headless,
         channel=channel,
         ignore_https_errors=ignore_https_errors,
