@@ -1,4 +1,4 @@
-"""Capture configured web pages as viewport screenshots."""
+"""Capture configured web pages as viewport or full-page screenshots."""
 
 from __future__ import annotations
 
@@ -22,10 +22,12 @@ class WebPagesCLI:
         web: WebSettings,
         output_dir: Path | None = None,
         device: WebDevice = WebDevice.DESKTOP,
+        full_page: bool = False,
     ) -> None:
         self._web = web
         self._output_dir = output_dir
         self._device = device
+        self._full_page = full_page
 
     def run(self, start_from: str | None = None) -> int:
         """Capture pages and return nonzero when any navigation fails."""
@@ -46,7 +48,8 @@ class WebPagesCLI:
         total = len(self._web.pages) * len(languages)
         failed = 0
         device_label = f" as {self._device.value}" if self._device is WebDevice.MOBILE else ""
-        AppLogger.info(f"Capturing {total} web page(s){device_label}...")
+        full_page_label = " (full page)" if self._full_page else ""
+        AppLogger.info(f"Capturing {total} web page(s){device_label}{full_page_label}...")
         try:
             with WebBrowser(self._web) as browser:
                 for language in languages:
@@ -69,7 +72,9 @@ class WebPagesCLI:
                                         f"Page '{target.name}' redirected to {page.url}."
                                     )
                                 still = output_dir / f"{target.name}.png"
-                                page.screenshot(path=str(still))
+                                page.screenshot(
+                                    path=str(still), full_page=self._full_page
+                                )
                                 AppLogger.info(f"  {still}")
                             except PlaywrightError as error:
                                 AppLogger.error(f"Unable to capture page '{target.name}': {error}")

@@ -6,7 +6,7 @@ Automated screenshot capture tool for Windows and web applications. It captures:
 - **Demo recordings** — launches an app that implements the [automation interface](docs/AUTOMATION_INTERFACE.md), records a scripted demo of it, and exports animated **GIF/MP4** plus PNG stills.
 - **Composition** — joins the recordings into the artifacts a README actually shows: a captioned feature tour (rendered with Remotion), slideshow GIFs, inline feature GIFs — each optionally held to a size budget.
 - **Live Flutter sessions** — starts an app once, hot-reloads it on request, and captures named screens without restarting the tool.
-- **Web pages and demos** — opens configured websites in Playwright, saves viewport screenshots, and records connector-driven demos as GIF/MP4 plus PNG stills.
+- **Web pages and demos** — opens configured websites in Playwright, saves viewport or full-page screenshots, and records connector-driven demos as GIF/MP4 plus PNG stills.
 
 The target application is defined by a JSON config file — either in `config/` here, or kept in the app's own repo (FastCalculator keeps its demo config in `calculator/tools/create_media/` with a `create_demos.bat` next to it). Ships with configs for **KeyboardLayoutWatcher** (41 languages) and the **AX Suite** web target (`config/ax-suite.example.json`).
 

@@ -80,3 +80,38 @@ def test_web_pages_cli_writes_mobile_screenshots_separately(tmp_path):
             assert image.size == (960, 720)
     finally:
         stop_servers(app, other, threads)
+
+
+def test_web_pages_cli_captures_full_mobile_page(tmp_path):
+    require_edge()
+    app, other, threads, _requests = start_servers()
+    try:
+        cfg = tmp_path / "web.json"
+        cfg.write_text(
+            json.dumps(
+                {
+                    "output_dir": str(tmp_path / "out"),
+                    "web": {
+                        "base_url": f"http://127.0.0.1:{app.server_port}",
+                        "mobile_viewport": {"width": 320, "height": 240},
+                        "headless": True,
+                        "pages": [{"name": "tall", "path": "/tall"}],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        config.load_config(cfg)
+        web = config.settings.web
+
+        assert WebPagesCLI(web, device=WebDevice.MOBILE, full_page=True).run() == 0
+        output = tmp_path / "out" / "pages" / "mobile" / "tall.png"
+        with Image.open(output) as image:
+            assert image.width == 960
+            assert image.height > 2000 * 3
+
+        assert WebPagesCLI(web, device=WebDevice.MOBILE).run() == 0
+        with Image.open(output) as image:
+            assert image.size == (960, 720)
+    finally:
+        stop_servers(app, other, threads)

@@ -59,9 +59,17 @@ def start_servers(
                   }}
                 }};
                 """
+            tall_content = ""
+            html_head = ""
+            if path == "/tall":
+                html_head = (
+                    "<head><meta name='viewport' "
+                    "content='width=device-width, initial-scale=1'></head>"
+                )
+                tall_content = "<div style='height:2000px'></div><footer>Footer</footer>"
             body = (
-                f"<html><body style='margin:0;background:#aa2211'><h1>{path}</h1>"
-                f"<script>{script}</script></body></html>"
+                f"<html>{html_head}<body style='margin:0;background:#aa2211'><h1>{path}</h1>"
+                f"{tall_content}<script>{script}</script></body></html>"
             ).encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html")

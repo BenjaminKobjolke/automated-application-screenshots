@@ -66,6 +66,7 @@ Examples:
   uv run screenshot-tool --config config/other-app.json  # Other target app
   uv run screenshot-tool -c config/app.json --demo all --compose  # Record + build
   uv run screenshot-tool --config config/web.json --device mobile  # Capture web pages as a phone
+  uv run screenshot-tool --config config/web.json --device mobile --full-page  # Whole page as a phone
         """,
     )
 
@@ -82,6 +83,11 @@ Examples:
         choices=[device.value for device in WebDevice],
         default=WebDevice.DESKTOP.value,
         help="Capture web pages as desktop or as an emulated phone (plain web run only)",
+    )
+    parser.add_argument(
+        "--full-page",
+        action="store_true",
+        help="Capture the whole scrollable page instead of the viewport (plain web run only)",
     )
 
     parser.add_argument(
@@ -143,12 +149,16 @@ Examples:
         args.live or args.demo or args.compose or args.list
     ):
         parser.error("--device mobile cannot be combined with --live, --demo, --compose or --list")
+    if args.full_page and (args.live or args.demo or args.compose or args.list):
+        parser.error("--full-page cannot be combined with --live, --demo, --compose or --list")
 
     if args.config:
         config.load_config(args.config)
 
     if args.device == WebDevice.MOBILE.value and config.settings.web is None:
         parser.error("--device mobile requires a config with a web section")
+    if args.full_page and config.settings.web is None:
+        parser.error("--full-page requires a config with a web section")
 
     if args.live:
         live_settings = config.settings.live
@@ -184,6 +194,7 @@ Examples:
             config.settings.web,
             output_dir=Path(args.output) if args.output else None,
             device=WebDevice(args.device),
+            full_page=args.full_page,
         ).run(start_from=args.start_from)
 
     # Create CLI instance
