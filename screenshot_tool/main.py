@@ -65,6 +65,7 @@ Examples:
   uv run screenshot-tool --delay 0.5        # Wait 0.5s between captures
   uv run screenshot-tool --config config/other-app.json  # Other target app
   uv run screenshot-tool -c config/app.json --demo all --compose  # Record + build
+  uv run screenshot-tool -c config/app.json --output ./check --demo 1 --stills-only  # Stills only, into ./check
   uv run screenshot-tool --config config/web.json --device mobile  # Capture web pages as a phone
   uv run screenshot-tool --config config/web.json --device mobile --full-page  # Whole page as a phone
         """,
@@ -116,6 +117,11 @@ Examples:
         metavar="ID|all",
         help="Record the given demo (or all demos) of the configured app and exit",
     )
+    parser.add_argument(
+        "--stills-only",
+        action="store_true",
+        help="With --demo: record only the stills; skip frame capture and GIF/MP4 export",
+    )
 
     parser.add_argument(
         "--compose",
@@ -145,6 +151,8 @@ Examples:
         parser.error("--target requires --live")
     if (args.demo or args.compose) and (args.list or args.start_from):
         parser.error("--demo/--compose cannot be combined with --list or --start-from")
+    if args.stills_only and (not args.demo or args.compose):
+        parser.error("--stills-only requires --demo and cannot be combined with --compose")
     if args.device == WebDevice.MOBILE.value and (
         args.live or args.demo or args.compose or args.list
     ):
@@ -154,6 +162,7 @@ Examples:
 
     if args.config:
         config.load_config(args.config)
+    _apply_demo_overrides(args)
 
     if args.device == WebDevice.MOBILE.value and config.settings.web is None:
         parser.error("--device mobile requires a config with a web section")
@@ -202,6 +211,17 @@ Examples:
 
     # Run automated capture
     return cli.run_automated(start_from=args.start_from)
+
+
+def _apply_demo_overrides(args: argparse.Namespace) -> None:
+    """Apply output and format overrides shared by demo and compose runs."""
+    if args.output and (args.demo or args.compose):
+        config.settings = replace(config.settings, output_dir=str(Path(args.output).resolve()))
+    if args.stills_only:
+        config.settings = replace(
+            config.settings,
+            demos=tuple(replace(demo, formats=("png",)) for demo in config.settings.demos),
+        )
 
 
 if __name__ == "__main__":

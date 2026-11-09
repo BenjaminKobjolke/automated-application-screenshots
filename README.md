@@ -71,11 +71,12 @@ Runs `uv sync` to install dependencies.
 | Option | Description | Default |
 |---|---|---|
 | `--config`, `-c` | App config JSON file | `config/keyboard-layout-watcher.json` |
-| `--output`, `-o` | Output directory | from config |
+| `--output`, `-o` | Output directory; demo files go under `demos/<name>/`, and compose reads and writes there too | from config |
 | `--start-from`, `-s` | Language code to start from (skips earlier ones) | first language |
 | `--delay`, `-d` | Seconds to wait after each language change | from config |
 | `--list`, `-l` | List what the config can record and build, and exit | |
 | `--demo` | Record demo `<id>` (or `all`) of the configured app and exit | |
+| `--stills-only` | With `--demo`, save still images only; requires `--demo` and cannot be combined with `--compose` | |
 | `--compose` | Build the config's compose steps (`all`, or a matching output/type) | `all` |
 
 `list_supported_languages.bat` is a shortcut for `--list`. Details: [docs/COMMAND_LINE_ARGUMENTS.md](docs/COMMAND_LINE_ARGUMENTS.md).

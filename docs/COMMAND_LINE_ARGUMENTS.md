@@ -13,12 +13,13 @@ falling back to a checkout next to the app's repo.
 | Option | Argument | Description | Default |
 |---|---|---|---|
 | `--config`, `-c` | `PATH` | App config JSON file describing the target application (see [CONFIG.md](CONFIG.md)) | `config/keyboard-layout-watcher.json` |
-| `--output`, `-o` | `DIR` | Output directory. Screenshots are saved as `<DIR>/<language-code>/<screenshot_filename>` in language mode, or below `<DIR>/pages/` for web page capture (`pages/mobile/` for mobile capture) | `output_dir` from config |
+| `--output`, `-o` | `DIR` | Output directory. Screenshots are saved as `<DIR>/<language-code>/<screenshot_filename>` in language mode, or below `<DIR>/pages/` for web page capture (`pages/mobile/` for mobile capture). With `--demo`, demo files go under `<DIR>/demos/<name>[/<lang>]/`; `--compose` reads inputs from and writes outputs to `<DIR>`. The config's `output_dir` is unchanged | `output_dir` from config |
 | `--device` | `desktop\|mobile` | Capture configured web pages as desktop or an emulated phone; mobile applies to a plain web run only. See [Mobile screenshots](WEB.md#mobile-screenshots) | `desktop` |
 | `--start-from`, `-s` | `CODE` | Language code to start from; earlier languages are skipped. Useful to resume an aborted run | first language |
 | `--delay`, `-d` | `SECONDS` | Delay after each language change before capturing (float) | `delay_after_change` from config |
 | `--list`, `-l` | | List what the config can record and build — demos with their ids, groups, formats and languages, then the compose steps, then the language codes — and exit | |
 | `--demo` | `ID\|all` | Record the given demo (or all demos) defined in the config and exit — launches the app itself, exports GIF/MP4 + stills (see [AUTOMATION_INTERFACE.md](AUTOMATION_INTERFACE.md)). A demo with `languages` records once per language. Not combinable with `--list`/`--start-from` | |
+| `--stills-only` | | With `--demo`, record still images only, whatever formats the config lists. Skips frame capture and GIF/MP4 export. Requires `--demo`; cannot be combined with `--compose` | |
 | `--compose` | `ALL\|NAME` | Build the config's `compose` steps and exit: the joined tour, slideshow GIFs, inline GIFs (see [CONFIG.md](CONFIG.md#compose-array-optional)). `NAME` matches a step's `output` path or its `type`; omitted, it means all. Combine with `--demo` to record and then build — a failed recording stops the build rather than composing stale inputs. Not combinable with `--list`/`--start-from` | `all` |
 | `--live` | | Start a configured Flutter app and read JSON-lines live commands from stdin until `stop` or EOF. Requires `live` in the config; not combinable with `--demo`, `--compose`, `--list` or `--start-from`. Logs go to stderr and command responses to stdout. See [LIVE.md](LIVE.md) | |
 | `--target` | `windows\|android_emulator` | Override `live.target` for this run; requires `--live` | `live.target` |
@@ -40,6 +41,7 @@ uv run screenshot-tool --config config/ax-suite.local.json --device mobile # Cap
 uv run screenshot-tool --config config/ax-suite.local.json --list
 uv run screenshot-tool --config config/ax-suite.local.json --demo 1 --compose
 uv run screenshot-tool --config app.json --demo 1        # Record demo 1
+uv run screenshot-tool --config app.json --output ./check --demo 1 --stills-only  # Stills only, into ./check
 uv run screenshot-tool --config app.json --demo all      # Record every demo
 uv run screenshot-tool --config app.json --compose       # Build every artifact
 uv run screenshot-tool --config app.json --compose tour  # Rebuild just the tour
