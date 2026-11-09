@@ -19,6 +19,27 @@ HWND_TOPMOST = -1
 user32 = ctypes.windll.user32
 kernel32 = ctypes.windll.kernel32
 dwmapi = ctypes.windll.dwmapi
+gdi32 = ctypes.windll.gdi32
+
+# PrintWindow flag: render through DWM, so it works while the desktop is locked.
+PW_RENDERFULLCONTENT = 2
+GW_HWNDPREV = 3
+user32.GetWindow.restype = wintypes.HWND
+user32.GetWindow.argtypes = [wintypes.HWND, wintypes.UINT]
+# Handle-returning calls default to a 32-bit int restype, which truncates 64-bit handles.
+user32.GetWindowDC.restype = wintypes.HDC
+user32.GetWindowDC.argtypes = [wintypes.HWND]
+user32.ReleaseDC.argtypes = [wintypes.HWND, wintypes.HDC]
+user32.PrintWindow.argtypes = [wintypes.HWND, wintypes.HDC, wintypes.UINT]
+gdi32.CreateCompatibleDC.restype = wintypes.HDC
+gdi32.CreateCompatibleDC.argtypes = [wintypes.HDC]
+gdi32.CreateCompatibleBitmap.restype = wintypes.HBITMAP
+gdi32.CreateCompatibleBitmap.argtypes = [wintypes.HDC, ctypes.c_int, ctypes.c_int]
+gdi32.SelectObject.restype = wintypes.HGDIOBJ
+gdi32.SelectObject.argtypes = [wintypes.HDC, wintypes.HGDIOBJ]
+gdi32.GetBitmapBits.argtypes = [wintypes.HBITMAP, wintypes.LONG, ctypes.c_void_p]
+gdi32.DeleteObject.argtypes = [wintypes.HGDIOBJ]
+gdi32.DeleteDC.argtypes = [wintypes.HDC]
 
 # DwmGetWindowAttribute returns the visible frame without the resize border.
 DWMWA_EXTENDED_FRAME_BOUNDS = 9
