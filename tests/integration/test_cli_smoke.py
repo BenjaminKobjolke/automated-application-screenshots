@@ -70,6 +70,7 @@ def test_live_subprocess_keeps_stdout_json_and_routes_logs_to_stderr(tmp_path):
             "--live",
             "--target",
             "windows",
+            "--skip-idle-check",
         ],
         cwd=PROJECT_ROOT,
         input="\n".join(json.dumps(command) for command in commands) + "\n",

@@ -83,3 +83,17 @@ class _MONITORINFO(ctypes.Structure):
         ("rcWork", wintypes.RECT),
         ("dwFlags", wintypes.DWORD),
     ]
+
+
+class _LASTINPUTINFO(ctypes.Structure):
+    """Last keyboard or mouse input timestamp returned by Windows."""
+
+    _fields_: ClassVar = [
+        ("cbSize", wintypes.UINT),
+        ("dwTime", wintypes.DWORD),
+    ]
+
+
+user32.GetLastInputInfo.argtypes = [ctypes.POINTER(_LASTINPUTINFO)]
+user32.GetLastInputInfo.restype = wintypes.BOOL
+kernel32.GetTickCount.restype = wintypes.DWORD

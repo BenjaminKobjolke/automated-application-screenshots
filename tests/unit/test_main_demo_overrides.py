@@ -30,7 +30,9 @@ def _write_config(tmp_path: Path) -> Path:
 
 def _run_main(monkeypatch, *arguments: str) -> int:
     monkeypatch.setattr("screenshot_tool.main.setup_utf8_console", lambda: None)
-    monkeypatch.setattr(sys, "argv", ["screenshot-tool", *arguments])
+    monkeypatch.setattr(
+        sys, "argv", ["screenshot-tool", *arguments, "--skip-idle-check"]
+    )
     return main()
 
 

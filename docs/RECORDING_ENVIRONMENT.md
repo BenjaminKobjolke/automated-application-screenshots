@@ -58,6 +58,17 @@ screen. The shell's own classes are skipped, or the screen would go black
 instead of clear. The log line says how many were minimized; a
 "Minimized 0 window(s)" on a take that came out wrong is the tell.
 
+### A warning before the run starts
+
+Before a run that will show capture windows begins, the tool checks whether the
+mouse or keyboard was used in the last 60 seconds. If so, a small always-on-top
+window says screenshots are about to start and counts down from 10 seconds.
+Choose **Start now** to skip the remaining countdown, or close the window to
+start immediately. The warning is skipped when the PC has been idle for at
+least a minute, for `--list`, for a compose-only run, for a headless web run,
+and for a headless Android emulator live run. Pass `--skip-idle-check` to skip
+the check for any run, such as from a script or test.
+
 ### The interpreter
 
 The tool runs under `uv`, whose virtualenv is first on the child process's

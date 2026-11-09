@@ -23,6 +23,7 @@ falling back to a checkout next to the app's repo.
 | `--compose` | `ALL\|NAME` | Build the config's `compose` steps and exit: the joined tour, slideshow GIFs, inline GIFs (see [CONFIG.md](CONFIG.md#compose-array-optional)). `NAME` matches a step's `output` path or its `type`; omitted, it means all. Combine with `--demo` to record and then build — a failed recording stops the build rather than composing stale inputs. Not combinable with `--list`/`--start-from` | `all` |
 | `--live` | | Start a configured Flutter app and read JSON-lines live commands from stdin until `stop` or EOF. Requires `live` in the config; not combinable with `--demo`, `--compose`, `--list` or `--start-from`. Logs go to stderr and command responses to stdout. See [LIVE.md](LIVE.md) | |
 | `--target` | `windows\|android_emulator` | Override `live.target` for this run; requires `--live` | `live.target` |
+| `--skip-idle-check` | | Start without checking recent keyboard or mouse activity | |
 | `--help`, `-h` | | Show usage help and exit | |
 
 A plain run with a web config captures each configured page as a viewport PNG, once per configured language when `web.languages` is set. Use `--start-from` to resume at a web language. Web demo recording and browser setup are described in [WEB.md](WEB.md).

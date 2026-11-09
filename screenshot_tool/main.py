@@ -28,7 +28,7 @@ import sys
 from dataclasses import replace
 from pathlib import Path
 
-from . import config
+from . import config, idle_guard
 from .app_logger import AppLogger
 from .cli import ScreenshotCLI
 from .config_listing import list_config
@@ -142,6 +142,11 @@ Examples:
         choices=[target.value for target in LiveTarget],
         help="Override the live config target",
     )
+    parser.add_argument(
+        "--skip-idle-check",
+        action="store_true",
+        help="Start without checking whether someone is using the PC",
+    )
 
     args = parser.parse_args()
 
@@ -169,13 +174,27 @@ Examples:
     if args.full_page and config.settings.web is None:
         parser.error("--full-page requires a config with a web section")
 
+    live_settings = config.settings.live
+    if args.live and live_settings is None:
+        parser.error("--live requires a config with a live section")
+    if args.live and args.target:
+        live_settings = replace(live_settings, target=LiveTarget(args.target))
+
     if args.live:
-        live_settings = config.settings.live
-        if live_settings is None:
-            parser.error("--live requires a config with a live section")
-        if args.target:
-            live_settings = replace(live_settings, target=LiveTarget(args.target))
         AppLogger.configure(stream=sys.stderr)
+
+    if not args.skip_idle_check and idle_guard.shows_windows(
+        list_mode=args.list,
+        demo=bool(args.demo),
+        compose=bool(args.compose),
+        live=args.live,
+        live_settings=live_settings,
+        web_settings=config.settings.web,
+    ):
+        idle_guard.warn_if_active()
+
+    if args.live:
+        assert live_settings is not None
         AppLogger.info("Starting live screenshot session")
         return LiveCLI(LiveSession(live_settings), sys.stdin, sys.stdout).run()
 
