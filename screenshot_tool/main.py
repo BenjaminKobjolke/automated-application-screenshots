@@ -33,7 +33,7 @@ from .app_logger import AppLogger
 from .cli import ScreenshotCLI
 from .config_listing import list_config
 from .live_cli import LiveCLI
-from .live_config import LiveTarget
+from .live_config import LiveSettings, LiveTarget
 from .live_session import LiveSession
 from .web_config import WebDevice
 
@@ -183,16 +183,27 @@ Examples:
     if args.live:
         AppLogger.configure(stream=sys.stderr)
 
-    if not args.skip_idle_check and idle_guard.shows_windows(
-        list_mode=args.list,
-        demo=bool(args.demo),
-        compose=bool(args.compose),
-        live=args.live,
-        live_settings=live_settings,
-        web_settings=config.settings.web,
-    ):
-        idle_guard.warn_if_active()
+    warned = (
+        not args.skip_idle_check
+        and idle_guard.shows_windows(
+            list_mode=args.list,
+            demo=bool(args.demo),
+            compose=bool(args.compose),
+            live=args.live,
+            live_settings=live_settings,
+            web_settings=config.settings.web,
+        )
+        and idle_guard.warn_if_active()
+    )
+    try:
+        return _run(args, live_settings)
+    finally:
+        if warned:
+            idle_guard.notify_done()
 
+
+def _run(args: argparse.Namespace, live_settings: LiveSettings | None) -> int:
+    """Dispatch a parsed screenshot command to its selected workflow."""
     if args.live:
         assert live_settings is not None
         AppLogger.info("Starting live screenshot session")

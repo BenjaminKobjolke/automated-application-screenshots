@@ -69,6 +69,11 @@ least a minute, for `--list`, for a compose-only run, for a headless web run,
 and for a headless Android emulator live run. Pass `--skip-idle-check` to skip
 the check for any run, such as from a script or test.
 
+When the start warning appears, an always-on-top **Screenshots finished**
+window appears when the run ends, even if the run failed. It stays open until
+closed. The tool does not wait for it, so scripts finish normally. Passing
+`--skip-idle-check` also skips this completion alert.
+
 ### The interpreter
 
 The tool runs under `uv`, whose virtualenv is first on the child process's

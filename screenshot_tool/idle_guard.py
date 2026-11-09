@@ -1,6 +1,8 @@
-"""Warn someone who is working before capture takes over mouse, focus and windows."""
+"""Show start and end alerts around captures that interrupt an active user."""
 
 import ctypes
+import subprocess
+import sys
 import tkinter
 from typing import TYPE_CHECKING
 
@@ -13,6 +15,8 @@ if TYPE_CHECKING:
 
 IDLE_THRESHOLD_S = 60
 COUNTDOWN_S = 10
+DONE_TITLE = "Screenshots finished"
+DONE_MESSAGE = "Screenshots are finished — you can use the PC again."
 
 
 def seconds_since_input() -> float:
@@ -57,11 +61,48 @@ def show_countdown(seconds: int) -> None:
 
     root.protocol("WM_DELETE_WINDOW", finish)
     tick()
+    _center(root)
+    root.mainloop()
+
+
+def show_done_alert() -> None:
+    """Show a topmost completion alert until the user closes it."""
+    root = tkinter.Tk()
+    root.title(DONE_TITLE)
+    root.attributes("-topmost", True)
+    tkinter.Label(root, text=DONE_MESSAGE, wraplength=420, padx=24, pady=16).pack()
+    tkinter.Button(root, text="OK", command=root.destroy, padx=12, pady=6).pack(
+        pady=(0, 16)
+    )
+    root.protocol("WM_DELETE_WINDOW", root.destroy)
+    _center(root)
+    root.mainloop()
+
+
+def _center(root: tkinter.Tk) -> None:
+    """Center a prepared alert window on the screen."""
     root.update_idletasks()
     x = (root.winfo_screenwidth() - root.winfo_reqwidth()) // 2
     y = (root.winfo_screenheight() - root.winfo_reqheight()) // 2
     root.geometry(f"+{x}+{y}")
-    root.mainloop()
+
+
+def notify_done() -> None:
+    """Launch the persistent completion alert without blocking the CLI."""
+    AppLogger.info("Showing the end-of-run alert because the start warning was shown")
+    try:
+        # The CLI must not wait for someone to click OK.
+        subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                "from screenshot_tool.idle_guard import show_done_alert; show_done_alert()",
+            ],
+            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+            close_fds=True,
+        )
+    except OSError as error:
+        AppLogger.warning(f"Could not show the end-of-run alert; continuing: {error}")
 
 
 def shows_windows(
@@ -95,10 +136,10 @@ def shows_windows(
     return True
 
 
-def warn_if_active() -> None:
-    """Give an active user time to get out of the way before capture starts."""
+def warn_if_active() -> bool:
+    """Give an active user time to get out of the way and report whether shown."""
     if seconds_since_input() >= IDLE_THRESHOLD_S:
-        return
+        return False
 
     AppLogger.info(
         "Recent keyboard or mouse activity detected; showing a 10-second start warning"
@@ -107,3 +148,5 @@ def warn_if_active() -> None:
         show_countdown(COUNTDOWN_S)
     except tkinter.TclError as error:
         AppLogger.warning(f"Could not show the start warning window; continuing: {error}")
+        return False
+    return True
