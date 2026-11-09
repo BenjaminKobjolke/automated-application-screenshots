@@ -1,8 +1,8 @@
-"""Demo recording orchestration: launch app, record window, export GIF/MP4.
+"""Demo orchestration: launch app, capture stills or video, and export files.
 
 Flow per demo: start event server -> launch the app with the demo id and
-server port -> find its window -> record frames from ``demo_started`` to
-``demo_ended`` (saving stills on ``screenshot`` events) -> export.
+server port -> find its window -> handle screenshot events through uploaded
+PNGs, one-off captures or video recording -> export.
 """
 
 import subprocess
@@ -121,16 +121,22 @@ class DemoCLI:
             time.sleep(0.3)
 
             recorder = Recorder(hwnd, demo.fps, stills_dir=out_dir, crop=demo.crop)
-            recorder.start()
+            if demo.wants_video:
+                recorder.start()
             ok = desktop_demo._event_loop(server, proc, recorder)
 
             if recorder.is_alive():
                 time.sleep(TAIL_S)  # keep the final state in the recording
             recorder.stop()
-            recorder.join(timeout=5)
+            if demo.wants_video:
+                recorder.join(timeout=5)
             # Export even after an abnormal end - partial recordings help debugging
             desktop_demo._export(demo, recorder, out_dir)
-            return ok and bool(recorder.frames) and _run_verify(demo, language)
+            return (
+                ok
+                and (bool(recorder.frames) or not demo.wants_video)
+                and _run_verify(demo, language)
+            )
         finally:
             server.close()
             desktop_demo._shutdown(proc)

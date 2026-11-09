@@ -74,6 +74,7 @@ One JSON object per newline-terminated UTF-8 line, client (app) → server
 ```json
 {"event": "demo_started", "demo": 1, "hwnd": 264854}
 {"event": "screenshot", "name": "basic-results"}
+{"event": "screenshot", "name": "basic-results", "png": "<base64 PNG>"}
 {"event": "demo_ended", "demo": 1}
 ```
 
@@ -88,6 +89,11 @@ One JSON object per newline-terminated UTF-8 line, client (app) → server
   convenient; only the size must match the requested width/height.
 - `screenshot.name` becomes the still's filename (`<name>.png`) — keep it
   filesystem-friendly and unique within the demo.
+- `screenshot.png` is optional and contains standard base64 of the complete PNG
+  file. When present, the tool saves it as `<name>.png` instead of capturing the
+  window; omit it to keep tool-side capture. Older tool versions ignore this
+  field. Stills-only demos (`formats` `[]` or `["png"]`) whose screenshots all
+  include `png` need no readable desktop; video demos still require one.
 - Recording runs from `demo_started` to `demo_ended` (plus a short tail).
 - Tool-side timeouts: connect is `network.accept_timeout` (default 30 s),
   then 60 s max between events, 300 s per demo.
@@ -127,6 +133,7 @@ README for the wiring snippet; FastCalculator's `main.py` is the working example
 ## 5. Reference client for non-Python apps (stdlib only, copy-paste)
 
 ```python
+import base64
 import json
 import socket
 
@@ -153,8 +160,11 @@ class DemoClient:
     def send_started(self, demo_id: int, hwnd: int) -> None:
         self._send({"event": "demo_started", "demo": demo_id, "hwnd": hwnd})
 
-    def send_screenshot(self, name: str) -> None:
-        self._send({"event": "screenshot", "name": name})
+    def send_screenshot(self, name: str, png: bytes | None = None) -> None:
+        payload = {"event": "screenshot", "name": name}
+        if png is not None:
+            payload["png"] = base64.b64encode(png).decode("ascii")
+        self._send(payload)
 
     def send_ended(self, demo_id: int) -> None:
         self._send({"event": "demo_ended", "demo": demo_id})
@@ -269,7 +279,7 @@ With the connector's live screen registry, `screenshot-tool --live` keeps the ap
 - [ ] `--automation-demo-settings` JSON applied before the window shows
 - [ ] `--automation-demo-texts` placeholders filled into the demo script
 - [ ] Demo starts from clean, deterministic state; user settings untouched
-- [ ] Events sent: `demo_started` (with `hwnd`), `screenshot` per still, `demo_ended`
+- [ ] Events sent: `demo_started` (with `hwnd`), `screenshot` per still (optionally with a base64 `png`), `demo_ended`
 - [ ] App quits ~1 s after `demo_ended`
 - [ ] Keep hands off mouse/keyboard while recording (window must stay
       frontmost and unobstructed)

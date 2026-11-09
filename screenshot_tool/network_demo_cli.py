@@ -23,6 +23,7 @@ from .demo_common import (
     load_texts,
     output_dir_for,
     run_all,
+    save_uploaded_still,
 )
 from .demo_server import DemoServer
 
@@ -116,8 +117,7 @@ class NetworkDemoCLI:
             if event.event == "demo_started":
                 AppLogger.info(f"Demo {event.demo} started.")
             elif is_screenshot_event:
-                (out_dir / f"{event.name}.png").write_bytes(event.png)
-                AppLogger.info(f"  {out_dir / f'{event.name}.png'}")
+                save_uploaded_still(out_dir, event.name, event.png)
             elif event.event == "error":
                 AppLogger.error(f"App reported: {event.message}")
                 return False

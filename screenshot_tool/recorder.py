@@ -1,8 +1,9 @@
-"""Background thread recording a window as timestamped frames.
+"""Record window frames and save requested, uploaded or single-capture stills.
 
 Stills requested via ``request_still`` are saved from the next captured frame,
 so they are always consistent with the recording (and full quality — the
-capture is already lossless).
+capture is already lossless). Uploaded stills bypass desktop capture, while
+single-capture stills capture the window once without starting the thread.
 """
 
 import threading
@@ -13,6 +14,7 @@ from PIL import Image
 
 from .app_logger import AppLogger
 from .capture import WindowCapture
+from .demo_common import save_uploaded_still
 
 _FRAME_WARN_THRESHOLD = 1000
 
@@ -43,6 +45,23 @@ class Recorder(threading.Thread):
         """Save the next captured frame as ``<stills_dir>/<name>.png``."""
         with self._lock:
             self._pending_stills.append(name)
+
+    def save_uploaded_still(self, name: str, png: bytes) -> None:
+        """Save PNG bytes supplied by the application as a named still."""
+        save_uploaded_still(self.stills_dir, name, png)
+        self.saved_stills.append(name)
+
+    def capture_still(self, name: str) -> bool:
+        """Capture and save one window still without starting the recorder."""
+        try:
+            image = self._apply_crop(WindowCapture.capture_window(self.hwnd))
+            WindowCapture.save_screenshot(image, self.stills_dir / f"{name}.png")
+            self.saved_stills.append(name)
+            AppLogger.info(f"Saved still '{name}'")
+            return True
+        except Exception as e:
+            AppLogger.error(f"Still capture failed for '{name}': {e}")
+            return False
 
     def stop(self) -> None:
         self._stop.set()

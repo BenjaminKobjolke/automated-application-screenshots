@@ -86,25 +86,30 @@ def _event_loop(server: DemoServer, proc: subprocess.Popen, recorder: Recorder) 
             continue
         last_event = time.monotonic()
         if event.event == "screenshot" and event.name:
-            recorder.request_still(event.name)
+            if event.png is not None:
+                recorder.save_uploaded_still(event.name, event.png)
+            elif recorder.is_alive():
+                recorder.request_still(event.name)
+            elif not recorder.capture_still(event.name):
+                return False
         elif event.event == "demo_ended":
             AppLogger.info("Demo ended.")
             return True
 
 
 def _export(demo: DemoSpec, recorder: Recorder, out_dir: Path) -> None:
-    if not recorder.frames:
+    if not recorder.frames and demo.wants_video:
         AppLogger.error("No frames captured; nothing to export.")
-        return
-    timestamps = [t for t, _ in recorder.frames]
-    images = [img for _, img in recorder.frames]
-    AppLogger.info(f"Captured {len(images)} frames; exporting {', '.join(demo.formats)}...")
-    if "gif" in demo.formats:
-        export_gif(images, timestamps, out_dir / "demo.gif")
-        AppLogger.info(f"  {out_dir / 'demo.gif'}")
-    if "mp4" in demo.formats:
-        export_mp4(images, demo.fps, out_dir / "demo.mp4")
-        AppLogger.info(f"  {out_dir / 'demo.mp4'}")
+    if recorder.frames:
+        timestamps = [t for t, _ in recorder.frames]
+        images = [img for _, img in recorder.frames]
+        AppLogger.info(f"Captured {len(images)} frames; exporting {', '.join(demo.formats)}...")
+        if "gif" in demo.formats:
+            export_gif(images, timestamps, out_dir / "demo.gif")
+            AppLogger.info(f"  {out_dir / 'demo.gif'}")
+        if "mp4" in demo.formats:
+            export_mp4(images, demo.fps, out_dir / "demo.mp4")
+            AppLogger.info(f"  {out_dir / 'demo.mp4'}")
     for name in recorder.saved_stills:
         AppLogger.info(f"  {out_dir / f'{name}.png'}")
 

@@ -2,8 +2,9 @@
 
 Protocol (see docs/AUTOMATION_INTERFACE.md): the app connects and sends one
 JSON object per newline-terminated UTF-8 line: ``demo_started``,
-``screenshot`` (named still request), ``demo_ended``. Network mode adds the
-tool -> app ``start`` command, inline PNG stills, ``error``, and ``video`` (a
+``screenshot`` (named still request, optionally with an inline PNG in launch
+mode), ``demo_ended``. Network mode adds the tool -> app ``start`` command,
+inline PNG stills, ``error``, and ``video`` (a
 JSON header followed by that many raw mp4 bytes).
 """
 

@@ -1,5 +1,7 @@
 """Integration tests for DemoServer over a real localhost socket."""
 
+import base64
+import os
 import socket
 import threading
 import time
@@ -41,6 +43,37 @@ def test_server_receives_typed_events():
         shot = server.next_event(timeout=5)
         assert shot is not None and shot.event == "screenshot" and shot.name == "shot-a"
 
+        ended = server.next_event(timeout=5)
+        assert ended is not None and ended.event == "demo_ended"
+    finally:
+        thread.join(timeout=5)
+        server.close()
+
+
+def test_server_receives_uploaded_png_still():
+    png = os.urandom(8192)
+    encoded_png = base64.b64encode(png).decode("ascii")
+    server = DemoServer()
+    thread = client_thread(
+        server.port,
+        [
+            b'{"event":"demo_started","demo":1,"hwnd":4242}\n',
+            (
+                '{"event":"screenshot","name":"uploaded","png":"'
+                + encoded_png
+                + '"}\n'
+            ).encode(),
+            b'{"event":"demo_ended","demo":1}\n',
+        ],
+    )
+    try:
+        assert server.accept(timeout=5)
+        started = server.next_event(timeout=5)
+        assert started is not None and started.event == "demo_started"
+        screenshot = server.next_event(timeout=5)
+        assert screenshot is not None and screenshot.event == "screenshot"
+        assert screenshot.name == "uploaded"
+        assert screenshot.png == png
         ended = server.next_event(timeout=5)
         assert ended is not None and ended.event == "demo_ended"
     finally:

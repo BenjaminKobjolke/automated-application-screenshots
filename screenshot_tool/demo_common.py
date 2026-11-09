@@ -31,6 +31,15 @@ def output_dir_for(demo: DemoSpec, language: str | None) -> Path:
     return out_dir / language if language else out_dir
 
 
+def save_uploaded_still(out_dir: Path, name: str, png: bytes) -> Path:
+    """Write an app-uploaded PNG still and return its path."""
+    path = out_dir / f"{name}.png"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(png)
+    AppLogger.info(f"  {path}")
+    return path
+
+
 def texts_file_for(demo: DemoSpec, language: str | None) -> Path | None:
     """The ``<texts_dir>/<lang>.json`` of a language run, or None.
 

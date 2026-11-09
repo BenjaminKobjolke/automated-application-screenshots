@@ -38,6 +38,12 @@ def test_parse_screenshot_with_inline_png_decodes_base64():
     event = parse_event_line('{"event": "screenshot", "name": "home", "png": "aGVsbG8="}')
     assert event.name == "home"
     assert event.png == b"hello"
+    assert event.hwnd is None
+
+
+def test_screenshot_with_invalid_base64_png_raises_value_error():
+    with pytest.raises(ValueError):
+        parse_event_line('{"event": "screenshot", "name": "home", "png": "abc"}')
 
 
 def test_parse_video_header_carries_size():
