@@ -1,6 +1,7 @@
 """Tests for uploaded stills and still-only desktop demos."""
 
 import subprocess
+from io import BytesIO
 from unittest.mock import MagicMock
 
 from PIL import Image
@@ -63,7 +64,7 @@ def test_event_loop_captures_single_still_when_recorder_is_not_running():
 
 def test_capture_still_applies_crop_and_records_name(tmp_path, monkeypatch):
     recorder = Recorder(1, 10, tmp_path, crop=(1, 1, 1, 1))
-    monkeypatch.setattr(WindowCapture, "capture_window", lambda hwnd: Image.new("RGB", (10, 10)))
+    monkeypatch.setattr(WindowCapture, "capture_window", lambda _hwnd: Image.new("RGB", (10, 10)))
 
     assert recorder.capture_still("cropped")
     with Image.open(tmp_path / "cropped.png") as image:
@@ -74,7 +75,7 @@ def test_capture_still_applies_crop_and_records_name(tmp_path, monkeypatch):
 def test_capture_still_returns_false_when_capture_fails(tmp_path, monkeypatch):
     recorder = Recorder(1, 10, tmp_path)
 
-    def fail_capture(hwnd: int) -> Image.Image:
+    def fail_capture(_hwnd: int) -> Image.Image:
         raise RuntimeError("desktop unavailable")
 
     monkeypatch.setattr(WindowCapture, "capture_window", fail_capture)
@@ -82,6 +83,63 @@ def test_capture_still_returns_false_when_capture_fails(tmp_path, monkeypatch):
     assert not recorder.capture_still("failed")
     assert recorder.saved_stills == []
     assert not (tmp_path / "failed.png").exists()
+
+
+def test_uploaded_oversized_still_is_scaled(tmp_path):
+    recorder = Recorder(1, 10, tmp_path, max_size=(1920, 1080))
+    buffer = BytesIO()
+    Image.new("RGB", (3840, 2160)).save(buffer, format="PNG")
+    server = _server_with_events(
+        DemoEvent("screenshot", None, "home", None, png=buffer.getvalue()),
+        DemoEvent("demo_ended", None, None, None),
+    )
+
+    assert desktop_demo._event_loop(server, _proc(), recorder)
+    with Image.open(tmp_path / "home.png") as image:
+        assert image.size == (1920, 1080)
+
+
+def test_uploaded_smaller_still_is_byte_identical(tmp_path):
+    recorder = Recorder(1, 10, tmp_path, max_size=(1920, 1080))
+    buffer = BytesIO()
+    Image.new("RGB", (1280, 800)).save(buffer, format="PNG")
+    png = buffer.getvalue()
+    recorder.save_uploaded_still("home", png)
+
+    assert (tmp_path / "home.png").read_bytes() == png
+
+
+def test_undecodable_uploaded_still_is_saved_unchanged(tmp_path):
+    recorder = Recorder(1, 10, tmp_path, max_size=(1920, 1080))
+
+    recorder.save_uploaded_still("home", b"not an image")
+
+    assert (tmp_path / "home.png").read_bytes() == b"not an image"
+
+
+def test_capture_still_scales_image_after_crop(tmp_path, monkeypatch):
+    recorder = Recorder(1, 10, tmp_path, max_size=(1920, 1080))
+    monkeypatch.setattr(
+        WindowCapture,
+        "capture_window",
+        lambda _hwnd: Image.new("RGB", (3840, 2160)),
+    )
+
+    assert recorder.capture_still("large")
+    with Image.open(tmp_path / "large.png") as image:
+        assert image.size == (1920, 1080)
+
+
+def test_pending_still_is_scaled_without_changing_recorded_frame(tmp_path):
+    recorder = Recorder(1, 10, tmp_path, max_size=(1920, 1080))
+    recorder.request_still("next")
+    frame = Image.new("RGB", (3840, 2160))
+
+    recorder._save_pending_stills(frame)
+
+    assert frame.size == (3840, 2160)
+    with Image.open(tmp_path / "next.png") as image:
+        assert image.size == (1920, 1080)
 
 
 def test_export_allows_stills_only_demo_without_frames(tmp_path, monkeypatch):
@@ -98,3 +156,41 @@ def test_export_allows_stills_only_demo_without_frames(tmp_path, monkeypatch):
     error.assert_not_called()
     desktop_demo.export_gif.assert_not_called()
     desktop_demo.export_mp4.assert_not_called()
+
+
+def test_export_scales_only_oversized_video_frames(tmp_path, monkeypatch):
+    frames = [
+        (0.0, Image.new("RGB", (3840, 2160))),
+        (0.1, Image.new("RGB", (1280, 720))),
+    ]
+    recorder = MagicMock(spec=Recorder)
+    recorder.frames = frames
+    recorder.saved_stills = []
+    monkeypatch.setattr(desktop_demo, "export_gif", MagicMock())
+    monkeypatch.setattr(desktop_demo, "export_mp4", MagicMock())
+    demo = DemoSpec(
+        id=1,
+        name="demo",
+        formats=("gif", "mp4"),
+        width=1920,
+        height=1080,
+        scale_to_window_size=True,
+    )
+
+    desktop_demo._export(demo, recorder, tmp_path)
+
+    for exporter in (desktop_demo.export_gif, desktop_demo.export_mp4):
+        images = exporter.call_args.args[0]
+        assert [image.size for image in images] == [(1920, 1080), (1280, 720)]
+
+
+def test_export_leaves_frames_unchanged_when_scaling_is_off(tmp_path, monkeypatch):
+    recorder = MagicMock(spec=Recorder)
+    recorder.frames = [(0.0, Image.new("RGB", (3840, 2160)))]
+    recorder.saved_stills = []
+    monkeypatch.setattr(desktop_demo, "export_gif", MagicMock())
+
+    desktop_demo._export(DemoSpec(id=1, name="demo"), recorder, tmp_path)
+
+    images = desktop_demo.export_gif.call_args.args[0]
+    assert images[0].size == (3840, 2160)

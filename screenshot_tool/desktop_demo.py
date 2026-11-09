@@ -11,6 +11,7 @@ from .config import DemoSpec
 from .demo_common import ACCEPT_TIMEOUT_S, DEMO_CAP_S, EVENT_TIMEOUT_S
 from .demo_server import DemoServer
 from .exporter import export_gif, export_mp4
+from .image_fit import fit_within
 from .recorder import Recorder
 from .window_finder import WindowFinder
 
@@ -103,6 +104,8 @@ def _export(demo: DemoSpec, recorder: Recorder, out_dir: Path) -> None:
     if recorder.frames:
         timestamps = [t for t, _ in recorder.frames]
         images = [img for _, img in recorder.frames]
+        if demo.max_output_size is not None:
+            images = [fit_within(image, demo.max_output_size) for image in images]
         AppLogger.info(f"Captured {len(images)} frames; exporting {', '.join(demo.formats)}...")
         if "gif" in demo.formats:
             export_gif(images, timestamps, out_dir / "demo.gif")

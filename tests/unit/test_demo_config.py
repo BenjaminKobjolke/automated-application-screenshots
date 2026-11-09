@@ -3,7 +3,7 @@
 import json
 
 import pytest
-from demo_config_data import DEMO_ONLY, LANGUAGE_ONLY, WITH_APP_SETTINGS, write_config
+from demo_config_data import DEMO_ONLY, LANGUAGE_ONLY, write_config
 
 from screenshot_tool import config
 
@@ -35,6 +35,54 @@ def test_demo_defaults(tmp_path):
     assert minimal.formats == ("gif",)
     assert minimal.width is None
     assert minimal.height is None
+    assert all(not demo.scale_to_window_size for demo in settings.demos)
+    assert all(demo.max_output_size is None for demo in settings.demos)
+
+
+def test_top_level_scale_default_applies_with_per_demo_override(tmp_path):
+    data = json.loads(json.dumps(DEMO_ONLY))
+    data["scale_to_window_size"] = True
+    for demo in data["demos"]:
+        demo["width"] = 640
+        demo["height"] = 420
+    data["demos"][1]["scale_to_window_size"] = False
+
+    settings = config.load_config(write_config(tmp_path, data))
+
+    assert settings.demos[0].scale_to_window_size is True
+    assert settings.demos[0].max_output_size == (640, 420)
+    assert settings.demos[1].scale_to_window_size is False
+    assert settings.demos[1].max_output_size is None
+
+
+def test_per_demo_scale_flag_enables_output_size(tmp_path):
+    data = json.loads(json.dumps(DEMO_ONLY))
+    data["demos"][0]["scale_to_window_size"] = True
+
+    settings = config.load_config(write_config(tmp_path, data))
+
+    assert settings.demos[0].scale_to_window_size is True
+    assert settings.demos[0].max_output_size == (640, 420)
+
+
+@pytest.mark.parametrize("location", ["top-level", "per-demo"])
+def test_scale_flag_must_be_boolean(tmp_path, location):
+    data = json.loads(json.dumps(DEMO_ONLY))
+    if location == "top-level":
+        data["scale_to_window_size"] = "true"
+    else:
+        data["demos"][0]["scale_to_window_size"] = "true"
+
+    with pytest.raises(SystemExit, match="scale_to_window_size"):
+        config.load_config(write_config(tmp_path, data))
+
+
+def test_scaled_launch_demo_requires_width_and_height(tmp_path):
+    data = json.loads(json.dumps(DEMO_ONLY))
+    data["demos"][1]["scale_to_window_size"] = True
+
+    with pytest.raises(SystemExit, match=r"scale_to_window_size.*minimal"):
+        config.load_config(write_config(tmp_path, data))
 
 
 def test_combined_config_loads(tmp_path):

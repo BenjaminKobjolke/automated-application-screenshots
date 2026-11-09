@@ -77,6 +77,8 @@ class DemoSpec:
     formats: tuple[str, ...] = ("gif",)
     width: int | None = None
     height: int | None = None
+    # Launch mode: shrink stills and frames to fit width x height.
+    scale_to_window_size: bool = False
     # Opaque app-specific settings, written to a JSON file the app receives
     # via --automation-demo-settings
     app_settings: tuple[tuple[str, str], ...] = ()
@@ -107,6 +109,14 @@ class DemoSpec:
     def wants_video(self) -> bool:
         """Whether a network-mode app must screen-record this demo."""
         return "gif" in self.formats or "mp4" in self.formats
+
+    @property
+    def max_output_size(self) -> tuple[int, int] | None:
+        """The still and frame size limit when scaling is enabled."""
+        has_window_size = self.width is not None and self.height is not None
+        if self.scale_to_window_size and has_window_size:
+            return self.width, self.height
+        return None
 
     @property
     def short_name(self) -> str:

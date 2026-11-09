@@ -13,6 +13,7 @@ from .config_models import (
 )
 
 _VALID_FORMATS = ("gif", "mp4", "png")
+_SCALE_KEY = "scale_to_window_size"
 _WINDOW_KEYS = ["process_name", "title_substring"]
 _LANGUAGE_KEYS = ["dropdown_relative_pos", "screenshot_filename", "delay_after_change", "languages"]
 
@@ -59,7 +60,14 @@ def _parse_verify(config_path: Path, name: str, data: dict) -> tuple[VerifyCheck
     return tuple(checks)
 
 
-def _parse_demo(config_path: Path, data: dict) -> DemoSpec:
+def _parse_scale_flag(config_path: Path, value: object, where: str) -> bool:
+    """Validate a scale-to-window-size flag and identify its config location."""
+    if not isinstance(value, bool):
+        _fail(config_path, f"{where} {_SCALE_KEY} must be a boolean")
+    return value
+
+
+def _parse_demo(config_path: Path, data: dict, scale_default: bool = False) -> DemoSpec:
     if not isinstance(data.get("id"), int):
         _fail(config_path, "each demo needs an integer 'id'")
     if not isinstance(data.get("name"), str) or not data["name"]:
@@ -102,6 +110,9 @@ def _parse_demo(config_path: Path, data: dict) -> DemoSpec:
         formats=formats,
         width=data.get("width"),
         height=data.get("height"),
+        scale_to_window_size=_parse_scale_flag(
+            config_path, data.get(_SCALE_KEY, scale_default), f"demo '{data['name']}'"
+        ),
         app_settings=tuple((str(k), str(v)) for k, v in raw_settings.items()),
         languages=tuple(raw_languages),
         crop=crop,
@@ -139,7 +150,8 @@ def _parse_demo_section(
             config_path,
             "'demos' requires exactly one of a 'launch', 'network' or 'web' section",
         )
-    demos = tuple(_parse_demo(config_path, d) for d in data["demos"])
+    scale_default = _parse_scale_flag(config_path, data.get(_SCALE_KEY, False), "top-level")
+    demos = tuple(_parse_demo(config_path, d, scale_default) for d in data["demos"])
     if modes[0] == "web":
         for demo in demos:
             if not isinstance(demo.path, str) or not demo.path.startswith("/"):
@@ -150,6 +162,18 @@ def _parse_demo_section(
     if "network" in data:
         return None, _parse_network(config_path, data["network"]), demos
     launch = _parse_launch(config_path, data["launch"])
+
+    missing_scale_size = [
+        demo.name
+        for demo in demos
+        if demo.scale_to_window_size and (demo.width is None or demo.height is None)
+    ]
+    if missing_scale_size:
+        _fail(
+            config_path,
+            f"{_SCALE_KEY} needs 'width' and 'height' on demo(s): "
+            f"{', '.join(missing_scale_size)}",
+        )
 
     # A {width}/{height} placeholder in the command needs a size on every demo
     command_text = " ".join(launch.command)

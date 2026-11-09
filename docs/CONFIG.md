@@ -124,6 +124,12 @@ the target window. Set it to `false` to opt out, for example for phone
 recordings. The tool restores FancyZones afterward; the caller's batch file
 needs no changes. See [Recording environment](RECORDING_ENVIRONMENT.md#a-window-nobody-else-resizes).
 
+### `scale_to_window_size` (boolean, default `false`, demo mode, launch only)
+
+Set this at the top level to make it the default for every demo, or override it
+per demo. See the [`demos` setting](#demos-array) for its effect on stills and
+video frames.
+
 ### `screenshot_filename` (string, language mode)
 
 Filename of the screenshot saved inside each language subfolder, e.g. `"screenshot.png"`.
@@ -190,6 +196,7 @@ One entry per recordable demo:
 - `pixel_ratio` (number, default `1.0`, network mode) — device pixel ratio for in-app stills; `1.0` = logical pixels, `2.0` = twice the size.
 - `steps` (array of objects, network mode, optional) — demo steps sent to the app verbatim instead of a demo registered in the app: `{"type": "tap", "key": "settings_button"}`, `{"type": "type_text", "text": "{price}", "char_delay_ms": 60}`, `{"type": "pause", "seconds": 1}`, `{"type": "screenshot", "name": "settings"}`, `{"type": "custom", "name": "back"}`. Each entry needs a string `type`.
 - `width` / `height` (integers, optional) — window size the app must adopt. Recordings contain physical pixels: on a 150 % scaled display, 640×420 records as 960×630. The tool moves the window into the monitor's work area before recording, so the taskbar never appears in the capture — unless the window (in physical pixels) is larger than the work area itself; then the tool logs a warning and the fix is a smaller `width`/`height`.
+- `scale_to_window_size` (boolean, default `false`, launch mode) — may be set at the top level as the default for every demo and overridden per demo. When on, every still (uploaded by the app, captured by the tool, or taken from the recording) and every video frame before GIF/MP4 export is shrunk, keeping its aspect ratio, to fit inside `width` × `height` after `crop`; it never upscales and requires both dimensions. Network and web demos ignore it. For example, on a 200 % display a 1920×1080 window records as 3840×2160; this setting writes 1920×1080 images instead.
 - `app_settings` (object, optional) — opaque app-specific settings. The tool writes them to a temp JSON file and passes it as a single `--automation-demo-settings <path>` (deleted after the run). The key dialect is the app's own (FastCalculator: QSettings keys). Anything the app reads **at startup** can go here — e.g. a full color theme is just the set of keys the app loads on launch, so a themed demo is fully reproducible from the config, no runtime commands needed.
 - `crop` (object, optional) — pixels removed from each captured frame: `{"top", "right", "bottom", "left"}` (any subset, default 0). The tool already captures the window's real visible bounds (`DwmGetWindowAttribute` extended frame bounds) clamped to the monitor work area, so the invisible resize border and the taskbar never appear; use `crop` only for residual trimming (e.g. a rounded-corner pixel or a themed 1px edge). Applied in physical pixels, identically to every frame. MP4 export pads an odd resulting side by 1px (x264 needs even dimensions).
 - `group` (string, optional) — which compose step this demo feeds, e.g. `"tour"` or `"feature"`. A compose step with the same `group` picks up every demo in it, in `id` order. This replaces matching on a name prefix, which no config could state and every post-processing script had to re-implement.

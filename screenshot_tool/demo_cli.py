@@ -120,7 +120,13 @@ class DemoCLI:
             WindowStacking.set_topmost(hwnd)
             time.sleep(0.3)
 
-            recorder = Recorder(hwnd, demo.fps, stills_dir=out_dir, crop=demo.crop)
+            recorder = Recorder(
+                hwnd,
+                demo.fps,
+                stills_dir=out_dir,
+                crop=demo.crop,
+                max_size=demo.max_output_size,
+            )
             if demo.wants_video:
                 recorder.start()
             ok = desktop_demo._event_loop(server, proc, recorder)
