@@ -2,6 +2,7 @@
 
 import ctypes
 from ctypes import wintypes
+from typing import ClassVar
 
 # Windows API constants
 SW_RESTORE = 9
@@ -55,7 +56,7 @@ MINIMIZE_SETTLE_S = 1.2
 class _MONITORINFO(ctypes.Structure):
     """Monitor metadata returned by GetMonitorInfoW."""
 
-    _fields_ = [
+    _fields_: ClassVar = [
         ("cbSize", wintypes.DWORD),
         ("rcMonitor", wintypes.RECT),
         ("rcWork", wintypes.RECT),
