@@ -6,8 +6,10 @@ import sys
 import tkinter
 from typing import TYPE_CHECKING
 
+from . import win32_api
 from .app_logger import AppLogger
 from .win32_api import _LASTINPUTINFO, kernel32, user32
+from .window_finder import WindowFinder
 
 if TYPE_CHECKING:
     from .live_config import LiveSettings
@@ -17,6 +19,48 @@ IDLE_THRESHOLD_S = 60
 COUNTDOWN_S = 10
 DONE_TITLE = "Screenshots finished"
 DONE_MESSAGE = "Screenshots are finished — you can use the PC again."
+TK_WINDOW_CLASS = "TkTopLevel"
+
+
+def _is_leftover_alert(title: str, class_name: str) -> bool:
+    """Match only the completion alert owned by this tool."""
+    return title == DONE_TITLE and class_name == TK_WINDOW_CLASS
+
+
+def close_leftover_alerts() -> int:
+    """Close this tool's topmost completion alerts left by previous runs."""
+    matches: list[int] = []
+
+    def visit(hwnd: int, _param: int) -> bool:
+        class_buffer = ctypes.create_unicode_buffer(256)
+        win32_api.user32.GetClassNameW(hwnd, class_buffer, len(class_buffer))
+        title = WindowFinder.get_window_title(hwnd)
+        if _is_leftover_alert(title, class_buffer.value):
+            matches.append(hwnd)
+        return True
+
+    win32_api.user32.EnumWindows(win32_api._ENUM_WINDOWS_PROC(visit), 0)
+
+    closed = 0
+    for hwnd in matches:
+        result = win32_api.DWORD_PTR()
+        succeeded = win32_api.user32.SendMessageTimeoutW(
+            hwnd,
+            win32_api.WM_CLOSE,
+            0,
+            0,
+            win32_api.SMTO_ABORTIFHUNG,
+            win32_api.ALERT_CLOSE_TIMEOUT_MS,
+            ctypes.byref(result),
+        )
+        if succeeded:
+            closed += 1
+        else:
+            AppLogger.warning(f"Could not close leftover end-of-run alert (window {hwnd})")
+
+    if closed > 0:
+        AppLogger.info(f"Closed {closed} leftover end-of-run alert(s)")
+    return closed
 
 
 def seconds_since_input() -> float:

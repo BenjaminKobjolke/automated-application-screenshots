@@ -14,6 +14,13 @@ SWP_NOMOVE = 0x0002
 SWP_NOZORDER = 0x0004
 SWP_NOACTIVATE = 0x0010
 HWND_TOPMOST = -1
+WM_CLOSE = 0x0010
+SMTO_ABORTIFHUNG = 0x0002
+ALERT_CLOSE_TIMEOUT_MS = 2000
+
+# ctypes.wintypes omits these pointer-sized Windows aliases on supported Python versions.
+DWORD_PTR = ctypes.c_size_t
+LRESULT = ctypes.c_ssize_t
 
 # Load Windows DLLs
 user32 = ctypes.windll.user32
@@ -26,6 +33,22 @@ PW_RENDERFULLCONTENT = 2
 GW_HWNDPREV = 3
 user32.GetWindow.restype = wintypes.HWND
 user32.GetWindow.argtypes = [wintypes.HWND, wintypes.UINT]
+user32.GetClassNameW.restype = ctypes.c_int
+user32.GetClassNameW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+user32.GetWindowTextLengthW.restype = ctypes.c_int
+user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
+user32.GetWindowTextW.restype = ctypes.c_int
+user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+user32.SendMessageTimeoutW.restype = LRESULT
+user32.SendMessageTimeoutW.argtypes = [
+    wintypes.HWND,
+    wintypes.UINT,
+    wintypes.WPARAM,
+    wintypes.LPARAM,
+    wintypes.UINT,
+    wintypes.UINT,
+    ctypes.POINTER(DWORD_PTR),
+]
 # Handle-returning calls default to a 32-bit int restype, which truncates 64-bit handles.
 user32.GetWindowDC.restype = wintypes.HDC
 user32.GetWindowDC.argtypes = [wintypes.HWND]

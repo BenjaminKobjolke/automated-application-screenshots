@@ -11,6 +11,19 @@ from screenshot_tool.live_config import LiveSettings, LiveTarget
 from screenshot_tool.web_config import WebSettings
 
 
+@pytest.mark.parametrize(
+    ("title", "class_name", "expected"),
+    [
+        ("Screenshots finished", "TkTopLevel", True),
+        ("Screenshots finished", "CabinetWClass", False),
+        ("Screenshots are about to start", "TkTopLevel", False),
+        ("", "", False),
+    ],
+)
+def test_is_leftover_alert_matches_only_our_completion_window(title, class_name, expected):
+    assert idle_guard._is_leftover_alert(title, class_name) is expected
+
+
 def test_warn_if_active_skips_dialog_when_pc_is_idle(monkeypatch):
     shown = []
     monkeypatch.setattr(idle_guard, "seconds_since_input", lambda: idle_guard.IDLE_THRESHOLD_S)

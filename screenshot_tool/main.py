@@ -183,18 +183,17 @@ Examples:
     if args.live:
         AppLogger.configure(stream=sys.stderr)
 
-    warned = (
-        not args.skip_idle_check
-        and idle_guard.shows_windows(
-            list_mode=args.list,
-            demo=bool(args.demo),
-            compose=bool(args.compose),
-            live=args.live,
-            live_settings=live_settings,
-            web_settings=config.settings.web,
-        )
-        and idle_guard.warn_if_active()
+    shows = idle_guard.shows_windows(
+        list_mode=args.list,
+        demo=bool(args.demo),
+        compose=bool(args.compose),
+        live=args.live,
+        live_settings=live_settings,
+        web_settings=config.settings.web,
     )
+    if shows:
+        idle_guard.close_leftover_alerts()
+    warned = not args.skip_idle_check and shows and idle_guard.warn_if_active()
     try:
         return _run(args, live_settings)
     finally:

@@ -74,6 +74,10 @@ window appears when the run ends, even if the run failed. It stays open until
 closed. The tool does not wait for it, so scripts finish normally. Passing
 `--skip-idle-check` also skips this completion alert.
 
+At the start of every run that shows windows, the tool closes any **Screenshots finished** alerts
+left from earlier runs so they never appear in new screenshots; this also happens with
+`--skip-idle-check`.
+
 ### The interpreter
 
 The tool runs under `uv`, whose virtualenv is first on the child process's
