@@ -60,7 +60,7 @@ def test_warn_if_active_logs_and_continues_when_dialog_cannot_open(monkeypatch):
     assert "no interactive desktop" in warnings[0]
 
 
-def test_notify_done_starts_detached_alert_process(monkeypatch):
+def test_notify_done_starts_alert_process_without_console_window(monkeypatch):
     calls = []
 
     def record_process(*args, **kwargs):
@@ -73,7 +73,9 @@ def test_notify_done_starts_detached_alert_process(monkeypatch):
     assert len(calls) == 1
     args, kwargs = calls[0]
     assert args[0][0] == sys.executable
-    assert kwargs["creationflags"] & subprocess.DETACHED_PROCESS
+    assert kwargs["creationflags"] & subprocess.CREATE_NO_WINDOW
+    assert not kwargs["creationflags"] & subprocess.DETACHED_PROCESS
+    assert kwargs["creationflags"] & subprocess.CREATE_NEW_PROCESS_GROUP
 
 
 def test_notify_done_logs_and_continues_when_process_cannot_start(monkeypatch):

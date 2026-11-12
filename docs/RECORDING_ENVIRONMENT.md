@@ -71,8 +71,9 @@ where a phone or emulator app records itself. Pass `--skip-idle-check` to skip
 the check for any run, such as from a script or test.
 
 When the start warning appears, an always-on-top **Screenshots finished**
-window appears when the run ends, even if the run failed. It stays open until
-closed. The tool does not wait for it, so scripts finish normally. Passing
+window appears when the run ends, even if the run failed. It opens without a
+command line window and stays open until closed. The tool does not wait for it,
+so scripts finish normally. Passing
 `--skip-idle-check` also skips this completion alert.
 
 At the start of every run that shows windows, the tool closes any **Screenshots finished** alerts

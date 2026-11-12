@@ -143,7 +143,8 @@ def notify_done() -> None:
                 "-c",
                 "from screenshot_tool.idle_guard import show_done_alert; show_done_alert()",
             ],
-            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+            # A detached venv launcher makes its real Python child open a visible console.
+            creationflags=subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP,
             close_fds=True,
         )
     except OSError as error:
