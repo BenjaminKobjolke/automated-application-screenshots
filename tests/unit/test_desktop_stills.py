@@ -48,8 +48,20 @@ def test_event_loop_uses_request_for_recording_and_upload_for_png():
     )
 
     assert desktop_demo._event_loop(server, _proc(), recorder)
-    recorder.request_still.assert_called_once_with("captured")
+    recorder.request_still.assert_called_once_with("captured", None)
     recorder.save_uploaded_still.assert_called_once_with("uploaded", b"png")
+
+
+def test_event_loop_passes_target_hwnd_to_recording_request():
+    recorder = MagicMock(spec=Recorder)
+    recorder.is_alive.return_value = True
+    server = _server_with_events(
+        DemoEvent("screenshot", None, "second", 77),
+        DemoEvent("demo_ended", None, None, None),
+    )
+
+    assert desktop_demo._event_loop(server, _proc(), recorder)
+    recorder.request_still.assert_called_once_with("second", 77)
 
 
 def test_event_loop_captures_single_still_when_recorder_is_not_running():
@@ -59,7 +71,19 @@ def test_event_loop_captures_single_still_when_recorder_is_not_running():
     server = _server_with_events(DemoEvent("screenshot", None, "home", None))
 
     assert not desktop_demo._event_loop(server, _proc(), recorder)
-    recorder.capture_still.assert_called_once_with("home")
+    recorder.capture_still.assert_called_once_with("home", None)
+
+
+def test_event_loop_passes_target_hwnd_to_one_off_capture():
+    recorder = MagicMock(spec=Recorder)
+    recorder.is_alive.return_value = False
+    server = _server_with_events(
+        DemoEvent("screenshot", None, "second", 77),
+        DemoEvent("demo_ended", None, None, None),
+    )
+
+    assert desktop_demo._event_loop(server, _proc(), recorder)
+    recorder.capture_still.assert_called_once_with("second", 77)
 
 
 def test_capture_still_applies_crop_and_records_name(tmp_path, monkeypatch):
@@ -128,6 +152,70 @@ def test_capture_still_scales_image_after_crop(tmp_path, monkeypatch):
     assert recorder.capture_still("large")
     with Image.open(tmp_path / "large.png") as image:
         assert image.size == (1920, 1080)
+
+
+def test_capture_still_uses_target_hwnd_and_defaults_to_demo_hwnd(tmp_path, monkeypatch):
+    recorder = Recorder(1, 10, tmp_path)
+    captured_hwnds = []
+
+    def capture(hwnd: int) -> Image.Image:
+        captured_hwnds.append(hwnd)
+        size = (30, 20) if hwnd == 77 else (10, 10)
+        return Image.new("RGB", size)
+
+    monkeypatch.setattr(WindowCapture, "capture_window", capture)
+
+    assert recorder.capture_still("second", 77)
+    assert recorder.capture_still("main")
+
+    assert captured_hwnds == [77, 1]
+    with Image.open(tmp_path / "second.png") as image:
+        assert image.size == (30, 20)
+    with Image.open(tmp_path / "main.png") as image:
+        assert image.size == (10, 10)
+
+
+def test_pending_stills_capture_target_hwnd_and_keep_default_frame(tmp_path, monkeypatch):
+    recorder = Recorder(1, 10, tmp_path)
+    captured_hwnds = []
+    recorder.request_still("main")
+    recorder.request_still("second", 77)
+    frame = Image.new("RGB", (10, 10))
+
+    def capture(hwnd: int) -> Image.Image:
+        captured_hwnds.append(hwnd)
+        return Image.new("RGB", (30, 20))
+
+    monkeypatch.setattr(WindowCapture, "capture_window", capture)
+
+    recorder._save_pending_stills(frame)
+
+    assert captured_hwnds == [77]
+    with Image.open(tmp_path / "main.png") as image:
+        assert image.size == (10, 10)
+    with Image.open(tmp_path / "second.png") as image:
+        assert image.size == (30, 20)
+
+
+def test_pending_target_capture_failure_logs_and_saves_other_stills(tmp_path, monkeypatch):
+    recorder = Recorder(1, 10, tmp_path)
+    recorder.request_still("failed", 77)
+    recorder.request_still("main")
+    error = MagicMock()
+    monkeypatch.setattr("screenshot_tool.recorder.AppLogger.error", error)
+
+    def capture(hwnd: int) -> Image.Image:
+        if hwnd == 77:
+            raise RuntimeError("window gone")
+        return Image.new("RGB", (10, 10))
+
+    monkeypatch.setattr(WindowCapture, "capture_window", capture)
+
+    recorder._save_pending_stills(Image.new("RGB", (10, 10)))
+
+    assert not (tmp_path / "failed.png").exists()
+    assert (tmp_path / "main.png").exists()
+    error.assert_called_once_with("Still capture failed for 'failed' (hwnd 77): window gone")
 
 
 def test_pending_still_is_scaled_without_changing_recorded_frame(tmp_path):

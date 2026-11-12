@@ -57,6 +57,9 @@ def parse_event_line(line: str) -> DemoEvent:
         raise ValueError(f"not JSON: {line!r}") from e
     if not isinstance(data, dict) or data.get("event") not in KNOWN_EVENTS:
         raise ValueError(f"unknown demo event: {line!r}")
+    hwnd = data.get("hwnd")
+    if "hwnd" in data and (not isinstance(hwnd, int) or isinstance(hwnd, bool)):
+        raise ValueError("hwnd must be an integer")
     screens_data = data.get("screens")
     if "screens" in data and not isinstance(screens_data, list):
         raise ValueError("screens metadata must be a list")
@@ -88,7 +91,7 @@ def parse_event_line(line: str) -> DemoEvent:
         event=data["event"],
         demo=data.get("demo"),
         name=data.get("name"),
-        hwnd=data.get("hwnd"),
+        hwnd=hwnd,
         png=base64.b64decode(data["png"]) if isinstance(data.get("png"), str) else None,
         size=data.get("size"),
         message=data.get("message"),

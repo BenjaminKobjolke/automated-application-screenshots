@@ -74,6 +74,7 @@ One JSON object per newline-terminated UTF-8 line, client (app) → server
 ```json
 {"event": "demo_started", "demo": 1, "hwnd": 264854}
 {"event": "screenshot", "name": "basic-results"}
+{"event": "screenshot", "name": "new-window", "hwnd": 264900}
 {"event": "screenshot", "name": "basic-results", "png": "<base64 PNG>"}
 {"event": "demo_ended", "demo": 1}
 ```
@@ -89,6 +90,9 @@ One JSON object per newline-terminated UTF-8 line, client (app) → server
   convenient; only the size must match the requested width/height.
 - `screenshot.name` becomes the still's filename (`<name>.png`) — keep it
   filesystem-friendly and unique within the demo.
+- `screenshot.hwnd` is optional. When present, the tool captures that window for
+  this still instead of the `demo_started` window, for example a second top-level
+  window. A `png` takes precedence; omit `hwnd` to capture the demo window.
 - `screenshot.png` is optional and contains standard base64 of the complete PNG
   file. When present, the tool saves it as `<name>.png` instead of capturing the
   window; omit it to keep tool-side capture. Older tool versions ignore this
@@ -160,10 +164,14 @@ class DemoClient:
     def send_started(self, demo_id: int, hwnd: int) -> None:
         self._send({"event": "demo_started", "demo": demo_id, "hwnd": hwnd})
 
-    def send_screenshot(self, name: str, png: bytes | None = None) -> None:
+    def send_screenshot(
+        self, name: str, png: bytes | None = None, hwnd: int | None = None
+    ) -> None:
         payload = {"event": "screenshot", "name": name}
         if png is not None:
             payload["png"] = base64.b64encode(png).decode("ascii")
+        if hwnd is not None:
+            payload["hwnd"] = hwnd
         self._send(payload)
 
     def send_ended(self, demo_id: int) -> None:

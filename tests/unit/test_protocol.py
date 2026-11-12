@@ -20,6 +20,17 @@ def test_parse_screenshot():
     assert event == DemoEvent(event="screenshot", demo=None, name="basic-results", hwnd=None)
 
 
+def test_parse_screenshot_with_target_hwnd():
+    event = parse_event_line('{"event": "screenshot", "name": "x", "hwnd": 42}')
+    assert event.hwnd == 42
+
+
+@pytest.mark.parametrize("hwnd", ['"42"', "true", "null"])
+def test_parse_screenshot_rejects_invalid_target_hwnd(hwnd):
+    with pytest.raises(ValueError, match="hwnd must be an integer"):
+        parse_event_line(f'{{"event": "screenshot", "name": "x", "hwnd": {hwnd}}}')
+
+
 def test_parse_demo_ended():
     event = parse_event_line('{"event": "demo_ended", "demo": 3}')
     assert event == DemoEvent(event="demo_ended", demo=3, name=None, hwnd=None)

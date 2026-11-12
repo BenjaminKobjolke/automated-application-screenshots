@@ -90,8 +90,8 @@ def _event_loop(server: DemoServer, proc: subprocess.Popen, recorder: Recorder) 
             if event.png is not None:
                 recorder.save_uploaded_still(event.name, event.png)
             elif recorder.is_alive():
-                recorder.request_still(event.name)
-            elif not recorder.capture_still(event.name):
+                recorder.request_still(event.name, event.hwnd)
+            elif not recorder.capture_still(event.name, event.hwnd):
                 return False
         elif event.event == "demo_ended":
             AppLogger.info("Demo ended.")

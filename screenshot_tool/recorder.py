@@ -1,10 +1,9 @@
 """Record window frames and save requested, uploaded or single-capture stills.
 
 Stills requested via ``request_still`` are saved from the next captured frame,
-so they are consistent with the recording. The captured frame is lossless before
-the optional configured resize. Uploaded stills bypass desktop capture, while
-single-capture stills capture the window once without starting the thread.
-Stills honour the configured maximum output size.
+or from an optional target window captured at that frame tick. Uploaded stills
+bypass desktop capture, while single-capture stills capture once without starting
+the thread. Stills honour the configured crop and maximum output size.
 """
 
 import threading
@@ -40,15 +39,15 @@ class Recorder(threading.Thread):
         self.max_size = max_size
         self.frames: list[tuple[float, Image.Image]] = []
         self.saved_stills: list[str] = []
-        self._pending_stills: list[str] = []
+        self._pending_stills: list[tuple[str, int | None]] = []
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._warned = False
 
-    def request_still(self, name: str) -> None:
-        """Save the next captured frame as ``<stills_dir>/<name>.png``."""
+    def request_still(self, name: str, hwnd: int | None = None) -> None:
+        """Save a frame from the next tick as ``<stills_dir>/<name>.png``."""
         with self._lock:
-            self._pending_stills.append(name)
+            self._pending_stills.append((name, hwnd))
 
     def save_uploaded_still(self, name: str, png: bytes) -> None:
         """Save PNG bytes supplied by the application as a named still."""
@@ -62,10 +61,11 @@ class Recorder(threading.Thread):
         save_uploaded_still(self.stills_dir, name, png)
         self.saved_stills.append(name)
 
-    def capture_still(self, name: str) -> bool:
+    def capture_still(self, name: str, hwnd: int | None = None) -> bool:
         """Capture and save one window still without starting the recorder."""
         try:
-            image = self._fit(self._apply_crop(WindowCapture.capture_window(self.hwnd)))
+            target_hwnd = self.hwnd if hwnd is None else hwnd
+            image = self._fit(self._capture_cropped_window(target_hwnd))
             WindowCapture.save_screenshot(image, self.stills_dir / f"{name}.png")
             self.saved_stills.append(name)
             AppLogger.info(f"Saved still '{name}'")
@@ -113,6 +113,10 @@ class Recorder(threading.Thread):
             return image  # inset larger than the frame; ignore rather than crash
         return image.crop(box)
 
+    def _capture_cropped_window(self, hwnd: int) -> Image.Image:
+        """Capture one window and apply the recorder's configured crop."""
+        return self._apply_crop(WindowCapture.capture_window(hwnd))
+
     def _fit(self, image: Image.Image) -> Image.Image:
         """Shrink a still to the configured limit when one is set."""
         return fit_within(image, self.max_size) if self.max_size is not None else image
@@ -120,8 +124,15 @@ class Recorder(threading.Thread):
     def _save_pending_stills(self, image: Image.Image) -> None:
         with self._lock:
             pending, self._pending_stills = self._pending_stills, []
-        for name in pending:
+        for name, hwnd in pending:
             path = self.stills_dir / f"{name}.png"
-            WindowCapture.save_screenshot(self._fit(image), path)
+            still = image
+            if hwnd is not None and hwnd != self.hwnd:
+                try:
+                    still = self._capture_cropped_window(hwnd)
+                except Exception as e:
+                    AppLogger.error(f"Still capture failed for '{name}' (hwnd {hwnd}): {e}")
+                    continue
+            WindowCapture.save_screenshot(self._fit(still), path)
             self.saved_stills.append(name)
             AppLogger.info(f"Saved still '{name}'")
