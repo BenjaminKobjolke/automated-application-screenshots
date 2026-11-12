@@ -58,7 +58,8 @@
       "height": 800,
       "group": "tour",
       "caption": "Two panes, one keyboard",
-      "captions": { "de": "Zwei Fenster, eine Tastatur" }
+      "captions": { "de": "Zwei Fenster, eine Tastatur" },
+      "subtitles": [{ "at": 12, "text": "Type to filter", "seconds": 4 }]
     },
     {
       "id": 4,

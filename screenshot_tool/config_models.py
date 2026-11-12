@@ -68,6 +68,17 @@ class VerifyCheck:
 
 
 @dataclass(frozen=True)
+class Subtitle:
+    """A line a "tour" compose step shows at one moment inside a chapter."""
+
+    # Seconds from the start of the chapter's own clip.
+    at: float
+    text: str
+    # None = as long as a chapter title (the tour step's caption_seconds).
+    seconds: float | None = None
+
+
+@dataclass(frozen=True)
 class DemoSpec:
     """One recordable demo the target application can play."""
 
@@ -97,6 +108,8 @@ class DemoSpec:
     # per-language wording, caption the single-language case.
     caption: str | None = None
     captions: tuple[tuple[str, str], ...] = ()
+    # Lines the tour shows mid-chapter, where the title has long gone.
+    subtitles: tuple[Subtitle, ...] = ()
     # Network mode: device pixel ratio for in-app stills (1.0 = logical pixels).
     pixel_ratio: float = DEFAULT_PIXEL_RATIO
     # Web mode starts a demo at this application-relative path.

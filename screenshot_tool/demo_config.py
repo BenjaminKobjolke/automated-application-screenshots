@@ -9,6 +9,7 @@ from .config_models import (
     DemoSpec,
     LaunchSettings,
     NetworkSettings,
+    Subtitle,
     VerifyCheck,
 )
 
@@ -58,6 +59,30 @@ def _parse_verify(config_path: Path, name: str, data: dict) -> tuple[VerifyCheck
         else:
             _fail(config_path, f"demo '{name}' has unknown verify check '{kind}'")
     return tuple(checks)
+
+
+def _is_number(value: object) -> bool:
+    # bool is an int subclass, and True as a time is a config typo, not 1 s.
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _parse_subtitles(config_path: Path, name: str, data: dict) -> tuple[Subtitle, ...]:
+    raw = data.get("subtitles", [])
+    if not isinstance(raw, list):
+        _fail(config_path, f"demo '{name}' subtitles must be a list of objects")
+    subtitles = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            _fail(config_path, f"demo '{name}' subtitles must be a list of objects")
+        at, text, seconds = entry.get("at"), entry.get("text"), entry.get("seconds")
+        if not _is_number(at) or at < 0:
+            _fail(config_path, f"demo '{name}' subtitle 'at' must be a number of seconds >= 0")
+        if not isinstance(text, str) or not text:
+            _fail(config_path, f"demo '{name}' subtitle at {at} needs a non-empty 'text'")
+        if seconds is not None and (not _is_number(seconds) or seconds <= 0):
+            _fail(config_path, f"demo '{name}' subtitle at {at} 'seconds' must be a number > 0")
+        subtitles.append(Subtitle(float(at), text, None if seconds is None else float(seconds)))
+    return tuple(subtitles)
 
 
 def _parse_scale_flag(config_path: Path, value: object, where: str) -> bool:
@@ -120,6 +145,7 @@ def _parse_demo(config_path: Path, data: dict, scale_default: bool = False) -> D
         group=data.get("group"),
         caption=data.get("caption"),
         captions=tuple((str(k), str(v)) for k, v in raw_captions.items()),
+        subtitles=_parse_subtitles(config_path, data["name"], data),
         pixel_ratio=float(data.get("pixel_ratio", DEFAULT_PIXEL_RATIO)),
         path=data.get("path", "/"),
         steps=tuple(raw_steps),
@@ -130,11 +156,7 @@ def _parse_network(config_path: Path, data: dict) -> NetworkSettings:
     if not isinstance(data, dict) or not isinstance(data.get("port"), int):
         _fail(config_path, "network.port must be an integer")
     timeout = data.get("accept_timeout", ACCEPT_TIMEOUT_S)
-    # bool is an int subclass, and True as a timeout is a config typo, not 1 s.
-    is_positive_timeout = (
-        not isinstance(timeout, bool) and isinstance(timeout, (int, float)) and timeout > 0
-    )
-    if not is_positive_timeout:
+    if not _is_number(timeout) or timeout <= 0:
         _fail(config_path, "network.accept_timeout must be a positive number of seconds")
     return NetworkSettings(port=data["port"], accept_timeout=float(timeout))
 

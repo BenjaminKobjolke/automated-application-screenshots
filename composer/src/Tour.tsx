@@ -3,6 +3,7 @@ import {
   AbsoluteFill,
   interpolate,
   OffthreadVideo,
+  Sequence,
   Series,
   staticFile,
   useCurrentFrame,
@@ -16,6 +17,8 @@ export type Clip = {
   src: string;
   durationInFrames: number;
   caption?: string | null;
+  /** Lines shown mid-chapter; frames count from the start of this clip. */
+  subtitles?: {text: string; fromFrame: number; durationInFrames: number}[];
 };
 
 export type TourProps = {
@@ -49,6 +52,20 @@ const Chapter: React.FC<{clip: Clip; captionFrames: number}> = ({
       {clip.caption ? (
         <Caption text={clip.caption} durationInFrames={captionFrames} />
       ) : null}
+      {/* A Sequence restarts the frame count, so Caption fades in and out
+          around each subtitle exactly as it does around the chapter title. */}
+      {(clip.subtitles ?? []).map((subtitle) => (
+        <Sequence
+          key={subtitle.fromFrame}
+          from={subtitle.fromFrame}
+          durationInFrames={subtitle.durationInFrames}
+        >
+          <Caption
+            text={subtitle.text}
+            durationInFrames={subtitle.durationInFrames}
+          />
+        </Sequence>
+      ))}
     </AbsoluteFill>
   );
 };

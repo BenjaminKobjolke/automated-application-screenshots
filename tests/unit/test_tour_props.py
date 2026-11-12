@@ -33,6 +33,10 @@ CONFIG = {
             "group": "tour",
             "caption": "Two panes",
             "captions": {"de": "Zwei Fenster"},
+            "subtitles": [
+                {"at": 1.5, "text": "Type to filter", "seconds": 2},
+                {"at": 3, "text": "Sort"},
+            ],
             "width": 1280,
             "height": 800,
             "formats": ["mp4"],
@@ -111,6 +115,23 @@ def test_captions_follow_the_language(loaded):
     assert props_of(loaded, "de")["clips"][0]["caption"] == "Zwei Fenster"
     # tour-b has no German wording, so it keeps its default caption.
     assert props_of(loaded, "de")["clips"][1]["caption"] == "Organize"
+
+
+def test_subtitles_become_frame_ranges_inside_their_chapter(loaded):
+    tour_a, tour_b = props_of(loaded)["clips"]
+    assert tour_a["subtitles"] == [
+        {"text": "Type to filter", "fromFrame": 45, "durationInFrames": 60},
+        # No "seconds": it stays up as long as a chapter title, 4 s here.
+        {"text": "Sort", "fromFrame": 90, "durationInFrames": 120},
+    ]
+    assert tour_b["subtitles"] == []
+
+
+def test_a_subtitle_past_the_end_of_its_clip_is_an_error(loaded, monkeypatch):
+    # A shorter retake must not make a subtitle vanish without a word.
+    monkeypatch.setattr(tour, "_clip_seconds", lambda path: 3.0)
+    with pytest.raises(RuntimeError, match=r"tour-a.*'Sort'"):
+        props_of(loaded)
 
 
 def test_height_keeps_the_recorded_aspect_and_stays_even(loaded):

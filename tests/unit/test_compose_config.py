@@ -4,6 +4,7 @@ import pytest
 from compose_config_data import BASE, load, with_compose
 
 from screenshot_tool import config
+from screenshot_tool.config_models import Subtitle
 
 # --- sizes --------------------------------------------------------------------
 
@@ -51,6 +52,41 @@ def test_caption_for_language_falls_back(tmp_path):
     assert tour_a.caption_for("de") == "Two panes"  # no German wording, use the default
     assert tour_b.caption_for("de") == "Zwei"
     assert tour_b.caption_for(None) is None
+
+
+def with_subtitles(subtitles):
+    demos = [{**d, "subtitles": subtitles} if d["id"] == 3 else d for d in BASE["demos"]]
+    return {**BASE, "demos": demos}
+
+
+def test_subtitles_are_read(tmp_path):
+    subtitles = [{"at": 18.5, "text": "Type to filter"}, {"at": 24, "text": "Sort", "seconds": 3}]
+    settings = load(tmp_path, with_subtitles(subtitles))
+    tour_a, tour_b = settings.demos_in_group("tour")
+    assert tour_a.subtitles == (
+        Subtitle(at=18.5, text="Type to filter"),
+        Subtitle(at=24.0, text="Sort", seconds=3.0),
+    )
+    assert tour_b.subtitles == ()
+
+
+@pytest.mark.parametrize(
+    "subtitles",
+    [
+        {"at": 1, "text": "not a list"},
+        ["not an object"],
+        [{"text": "no time"}],
+        [{"at": -1, "text": "before the start"}],
+        [{"at": True, "text": "a typo, not 1 s"}],
+        [{"at": 1}],
+        [{"at": 1, "text": ""}],
+        [{"at": 1, "text": "x", "seconds": 0}],
+        [{"at": 1, "text": "x", "seconds": True}],
+    ],
+)
+def test_malformed_subtitles_are_rejected(tmp_path, subtitles):
+    with pytest.raises(SystemExit, match=r"tour-a.*subtitle"):
+        load(tmp_path, with_subtitles(subtitles))
 
 
 def test_relative_output_dir_resolves_against_the_config(tmp_path):

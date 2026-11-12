@@ -59,23 +59,49 @@ def _card(spec: Any, fps: int) -> dict[str, Any] | None:
     }
 
 
+def _subtitles(demo: DemoSpec, clip_frames: int, default_seconds: float, fps: int) -> list[dict]:
+    """The demo's subtitles as frame ranges local to its own clip."""
+    subtitles = []
+    for subtitle in demo.subtitles:
+        from_frame = round(subtitle.at * fps)
+        if from_frame >= clip_frames:
+            # Remotion would render nothing and say nothing; a retake that came
+            # out shorter is the usual cause, so name what to re-time.
+            raise RuntimeError(
+                f"demo '{demo.name}' subtitle '{subtitle.text}' starts at {subtitle.at} s, "
+                f"but the clip is only {clip_frames / fps:.1f} s long"
+            )
+        seconds = default_seconds if subtitle.seconds is None else subtitle.seconds
+        subtitles.append(
+            {
+                "text": subtitle.text,
+                "fromFrame": from_frame,
+                "durationInFrames": max(1, round(seconds * fps)),
+            }
+        )
+    return subtitles
+
+
 def _props(step: ComposeStep, chapters: tuple[DemoSpec, ...], language: str | None) -> dict:
     merged = {**DEFAULTS, **step.settings}
     fps = int(merged["fps"])
     width = int(merged["width"])
+    caption_seconds = float(merged["caption_seconds"])
     public_dir = Path(config.settings.output_dir)
 
     clips: list[dict[str, Any]] = []
     height = None
     for demo in chapters:
         path = _chapter_clip(demo, language)
+        clip_frames = max(1, round(_clip_seconds(path) * fps))
         clips.append(
             {
                 # Relative to the public dir: Remotion serves files from there,
                 # and an absolute Windows path is not a URL Chrome will load.
                 "src": path.relative_to(public_dir).as_posix(),
-                "durationInFrames": max(1, round(_clip_seconds(path) * fps)),
+                "durationInFrames": clip_frames,
                 "caption": demo.caption_for(language),
+                "subtitles": _subtitles(demo, clip_frames, caption_seconds, fps),
             }
         )
         has_recorded_dimensions = bool(demo.width and demo.height)
@@ -95,7 +121,7 @@ def _props(step: ComposeStep, chapters: tuple[DemoSpec, ...], language: str | No
         # -2-style rounding: H.264 needs even dimensions.
         "height": (height or round(width * 0.625)) // 2 * 2,
         "totalFrames": max(1, total),
-        "captionFrames": max(1, round(float(merged["caption_seconds"]) * fps)),
+        "captionFrames": max(1, round(caption_seconds * fps)),
         "clips": clips,
         "intro": intro,
         "outro": outro,
