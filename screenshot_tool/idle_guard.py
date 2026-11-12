@@ -12,6 +12,7 @@ from .win32_api import _LASTINPUTINFO, kernel32, user32
 from .window_finder import WindowFinder
 
 if TYPE_CHECKING:
+    from .config_models import NetworkSettings
     from .live_config import LiveSettings
     from .web_config import WebSettings
 
@@ -157,22 +158,21 @@ def shows_windows(
     live: bool,
     live_settings: "LiveSettings | None",
     web_settings: "WebSettings | None",
+    network_settings: "NetworkSettings | None",
 ) -> bool:
-    """Return whether this CLI invocation will show a capture window on screen."""
+    """Return whether this run needs the desktop free of user input."""
     if list_mode or (compose and not demo):
         return False
 
     if live:
         from .live_config import LiveTarget
 
-        return not (
-            live_settings is not None
-            and live_settings.target is LiveTarget.ANDROID_EMULATOR
-            and live_settings.headless
-        )
+        # The app sends its own PNG, so the emulator window needs no input.
+        return live_settings is None or live_settings.target is not LiveTarget.ANDROID_EMULATOR
 
     if demo:
-        return True
+        # Network demos record on the device itself.
+        return web_settings is not None or network_settings is None
 
     if web_settings is not None:
         return not web_settings.headless

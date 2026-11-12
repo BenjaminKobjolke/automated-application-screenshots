@@ -7,6 +7,7 @@ import tkinter
 import pytest
 
 from screenshot_tool import idle_guard
+from screenshot_tool.config_models import NetworkSettings
 from screenshot_tool.live_config import LiveSettings, LiveTarget
 from screenshot_tool.web_config import WebSettings
 
@@ -106,8 +107,27 @@ def _live_settings(target=LiveTarget.WINDOWS, headless=False):
             },
             False,
         ),
+        (
+            {
+                "live": True,
+                "live_settings": _live_settings(LiveTarget.ANDROID_EMULATOR),
+            },
+            False,
+        ),
         ({}, True),
         ({"demo": True}, True),
+        (
+            {"demo": True, "network_settings": NetworkSettings(port=1234)},
+            False,
+        ),
+        (
+            {
+                "demo": True,
+                "network_settings": NetworkSettings(port=1234),
+                "web_settings": WebSettings(base_url="https://example.test"),
+            },
+            True,
+        ),
         (
             {
                 "demo": True,
@@ -129,6 +149,7 @@ def test_shows_windows_for_capture_modes(kwargs, expected):
         "live": False,
         "live_settings": None,
         "web_settings": None,
+        "network_settings": None,
     }
     arguments.update(kwargs)
 

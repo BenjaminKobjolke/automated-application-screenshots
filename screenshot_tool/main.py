@@ -190,6 +190,7 @@ Examples:
         live=args.live,
         live_settings=live_settings,
         web_settings=config.settings.web,
+        network_settings=config.settings.network,
     )
     if shows:
         idle_guard.close_leftover_alerts()

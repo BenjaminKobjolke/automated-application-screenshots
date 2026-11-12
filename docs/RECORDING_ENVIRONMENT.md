@@ -66,7 +66,8 @@ window says screenshots are about to start and counts down from 10 seconds.
 Choose **Start now** to skip the remaining countdown, or close the window to
 start immediately. The warning is skipped when the PC has been idle for at
 least a minute, for `--list`, for a compose-only run, for a headless web run,
-and for a headless Android emulator live run. Pass `--skip-idle-check` to skip
+for any Android emulator live run (headless or not), and for a network demo run
+where a phone or emulator app records itself. Pass `--skip-idle-check` to skip
 the check for any run, such as from a script or test.
 
 When the start warning appears, an always-on-top **Screenshots finished**
