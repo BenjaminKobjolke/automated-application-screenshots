@@ -139,7 +139,7 @@ Apps without a desktop window run on a phone or emulator, connect to the tool ov
 
 ### Live mode
 
-For fast Flutter UI iteration, configure a `live` section and run `screenshot-tool --live`. The tool starts Flutter once and accepts `start`, `reload`, `screens`, `shot`, and `stop` JSON commands on stdin. See [docs/LIVE.md](docs/LIVE.md) for the protocol and target setup.
+For fast Flutter UI iteration, configure a `live` section and run `screenshot-tool --live`. The tool starts Flutter once and accepts `start`, `reload`, `screens`, `shot`, `gesture`, and `stop` JSON commands on stdin. See [docs/LIVE.md](docs/LIVE.md) for the protocol and target setup.
 
 ### Multi-language demos
 

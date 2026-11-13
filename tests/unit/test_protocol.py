@@ -69,8 +69,7 @@ def test_parse_error_carries_message():
 
 def test_parse_live_screens_event():
     event = parse_event_line(
-        '{"event":"screens","screens":[{"name":"home","description":"Home",'
-        '"needs_login":false}]}'
+        '{"event":"screens","screens":[{"name":"home","description":"Home","needs_login":false}]}'
     )
     assert event.screens == (ScreenInfo(name="home", description="Home", needs_login=False),)
 
@@ -91,8 +90,7 @@ def test_parse_live_screens_sections_default_to_empty():
 
 def test_parse_live_screens_record_id():
     event = parse_event_line(
-        '{"event":"screens","screens":[{"name":"todo_detail",'
-        '"record_id":"todo id"}]}'
+        '{"event":"screens","screens":[{"name":"todo_detail","record_id":"todo id"}]}'
     )
     assert event.screens == (ScreenInfo(name="todo_detail", record_id="todo id"),)
 
@@ -108,7 +106,9 @@ def test_parse_live_screens_rejects_invalid_record_id(record_id):
 @pytest.mark.parametrize("sections", ['"x"', "[1]"])
 def test_parse_live_screens_rejects_invalid_sections(sections):
     with pytest.raises(ValueError, match="screen sections must be a list of strings"):
-        parse_event_line(f'{{"event":"screens","screens":[{{"name":"home","sections":{sections}}}]}}')
+        parse_event_line(
+            f'{{"event":"screens","screens":[{{"name":"home","sections":{sections}}}]}}'
+        )
 
 
 def test_parse_theme_set_event():
@@ -129,6 +129,11 @@ def test_parse_live_screens_rejects_non_list_metadata():
 def test_parse_live_navigated_event():
     event = parse_event_line('{"event":"navigated","screen":"settings"}')
     assert event.screen == "settings"
+
+
+def test_parse_gestured_event():
+    event = parse_event_line('{"event":"gestured","kind":"pinch"}')
+    assert event.event == "gestured"
 
 
 def test_parse_live_reset_done_event():

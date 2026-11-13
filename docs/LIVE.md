@@ -1,6 +1,6 @@
 # Live Flutter sessions
 
-Live mode is for quick UI iteration. The screenshot tool starts Flutter once, keeps the app and its connector connection alive, then accepts commands to list screens, reload code, and capture a named screen.
+Live mode is for quick UI iteration. The screenshot tool starts Flutter once, keeps the app and its connector connection alive, then accepts commands to list screens, reload code, capture a named screen, and forward live gestures.
 
 ## Configure an app
 
@@ -46,8 +46,9 @@ The process reads one JSON object per line from stdin and writes exactly one JSO
 {"command":"start","id":1}
 {"command":"screens","id":2}
 {"command":"shot","screen":"home","out":"output/home.png","theme":"dark","id":3}
-{"command":"reload","id":4}
-{"command":"stop","id":5}
+{"command":"gesture","kind":"tap","at":[0.5,0.4],"id":4}
+{"command":"reload","id":5}
+{"command":"stop","id":6}
 ```
 
 `start` launches the app and resets it. `screens` returns the connector's screen registry. `shot` navigates to the requested screen and saves its PNG to `out`. It accepts optional `theme` (`dark` or `light`), `section` (a non-empty key registered for that screen), `full` (`true` for a stitched full-length PNG), `record_id` (an integer id for the record the screen opens, such as a todo id; only for screens whose `screens` entry has `record_id`), and `language` (a UI language code such as `de` or `en-US`, passed to the app's prepare callback on `navigate`). For example:
@@ -65,6 +66,24 @@ Before `start`, commands other than `stop` return `{"ok":false,"error":"not star
 
 ## Connector protocol
 
+### Gestures and current-state shots
+
+`gesture` sends a `tap`, `drag`, or `pinch` without navigating. Points are `[x,y]` fractions from `0` to `1` across the app view. Add both `screen` and `section` to target a registered section instead; a section requires its screen. `tap` uses `at`; `drag` uses `from` and `to`; `pinch` uses `center` and a positive `scale` (above `1` zooms in, below `1` zooms out). `duration_ms` is optional; the connector uses 100 ms for taps and 300 ms for drags and pinches by default. Invalid values and connector errors return `ok:false` with the error message.
+
+A `shot` without `screen` captures the current app state without sending `navigate`, preserving zoom or pan. It still requires `out`; `theme` and `full` are allowed. `section`, `record_id`, and `language` require a named `screen`.
+
+```json
+{"command":"shot","screen":"todo_detail","record_id":11551,"out":"output/detail.png"}
+{"command":"gesture","kind":"tap","at":[0.5,0.4]}
+{"command":"shot","out":"output/open.png"}
+{"command":"gesture","kind":"pinch","center":[0.5,0.5],"scale":2.0}
+{"command":"shot","out":"output/zoomed.png"}
+{"command":"gesture","kind":"drag","from":[0.5,0.5],"to":[0.7,0.4]}
+{"command":"shot","out":"output/moved.png"}
+```
+
+The same commands work with `windows` and `android_emulator` targets.
+
 The connector connects to `AUTOMATION_HOST` over TCP and handles one JSON command at a time. The tool uses these live commands:
 
 | Tool sends | Connector replies |
@@ -74,7 +93,11 @@ The connector connects to `AUTOMATION_HOST` over TCP and handles one JSON comman
 | `{"command":"navigate","screen":"habit_edit","section":"additional_information"}` | `{"event":"navigated","screen":"habit_edit"}` after scrolling; unknown sections report an `error` naming the key and screen |
 | `{"command":"navigate","screen":"todo_detail","record_id":11551}` | `{"event":"navigated","screen":"todo_detail"}` after opening that record; screens without record support report an `error` |
 | `{"command":"navigate","screen":"home","language":"de"}` | `{"event":"navigated","screen":"home"}` after the app's prepare callback receives the language |
+| `{"command":"gesture","kind":"tap","at":[0.5,0.4]}` | `{"event":"gestured","kind":"tap"}` |
+| `{"command":"gesture","kind":"drag","from":[0.2,0.5],"to":[0.8,0.5],"duration_ms":400}` | `{"event":"gestured","kind":"drag"}` |
+| `{"command":"gesture","kind":"pinch","center":[0.5,0.5],"scale":2.0,"screen":"image_viewer","section":"image"}` | `{"event":"gestured","kind":"pinch"}` |
 | `{"command":"screenshot","name":"home","pixel_ratio":1.0,"full":true}` | Existing `screenshot` event with one base64 PNG of the full scrollable content |
+| `{"command":"screenshot","name":"current","pixel_ratio":1.0}` | Existing `screenshot` event; sent without `navigate` for a current-state shot |
 | `{"command":"reset","settings":{}}` | `{"event":"reset_done"}` |
 
 The `section`, `record_id` and `language` fields on `navigate` and the `full` field on `screenshot` are optional. `list_screens` screen items may include a `sections` array of registered section keys and a `record_id` string describing the accepted id (for example, `todo id`). See the connector's `docs/LIVE_SCREENS.md` for registering record screens. Apps must expose a theme hook to support `set_theme`; when no hook is available they should send an `error` event such as `theme switching is not supported by this app`.

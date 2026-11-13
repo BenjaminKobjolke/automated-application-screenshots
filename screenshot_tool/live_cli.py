@@ -9,6 +9,7 @@ from enum import Enum
 from typing import TextIO
 
 from .demo_server import ScreenInfo
+from .live_gesture import parse_gesture_request
 from .live_session import LiveError, LiveSession, ReloadOutcome, ShotRequest, ShotTheme
 
 # BCP 47 style codes with underscores are accepted for Flutter locale names.
@@ -22,6 +23,7 @@ class LiveCommand(str, Enum):
     RELOAD = "reload"
     SCREENS = "screens"
     SHOT = "shot"
+    GESTURE = "gesture"
     STOP = "stop"
 
 
@@ -127,6 +129,10 @@ class LiveCLI:
         if command is LiveCommand.SHOT:
             path = self._session.shot(_shot_request(request))
             return {"ok": True, "path": str(path)}
+        if command is LiveCommand.GESTURE:
+            gesture = parse_gesture_request(request)
+            self._session.gesture(gesture)
+            return {"ok": True, "kind": gesture.kind.value}
         raise ValueError(f"unknown command: {command.value}")
 
     def _write(self, response: dict[str, object]) -> None:
@@ -157,8 +163,14 @@ def _shot_request(request: dict[str, object]) -> ShotRequest:
     """Validate JSON shot options and convert them to the typed session request."""
     screen = request.get("screen")
     out = request.get("out")
-    if not isinstance(screen, str) or not isinstance(out, str):
-        raise ValueError("shot requires string screen and out fields")
+    if "screen" in request and (not isinstance(screen, str) or not screen):
+        raise ValueError("screen must be a non-empty string")
+    if not isinstance(out, str):
+        raise ValueError("shot requires string out field")
+    if screen is None:
+        for field in ("section", "record_id", "language"):
+            if field in request:
+                raise ValueError(f"{field} requires screen")
 
     theme: ShotTheme | None = None
     if "theme" in request:

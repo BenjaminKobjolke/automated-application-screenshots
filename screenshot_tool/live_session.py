@@ -10,6 +10,7 @@ from .demo_server import DemoServer, ScreenInfo
 from .flutter_daemon import FlutterDaemon
 from .live_app_link import _POLL_SECONDS, LiveAppLink
 from .live_config import LiveSettings, LiveTarget, device_id
+from .live_gesture import GestureRequest, build_gesture_payload
 from .live_types import (
     LiveError,
     ReloadOutcome,
@@ -118,21 +119,30 @@ class LiveSession:
         event = self.app_link.request({"command": "list_screens"}, "screens", _COMMAND_TIMEOUT)
         return event.screens or ()
 
+    def gesture(self, request: GestureRequest) -> None:
+        """Send one gesture to the app and wait for it to settle."""
+        self._require_started()
+        self.app_link.request(build_gesture_payload(request), "gestured", _COMMAND_TIMEOUT)
+
     def shot(self, request: ShotRequest) -> Path:
-        """Navigate to a named screen and save the app-provided PNG."""
+        """Capture a named screen or the current app state and save its PNG."""
         self._require_started()
         if request.theme is not None:
             self.app_link.request(
-                {"command": "set_theme", "theme": request.theme.value}, "theme_set", _COMMAND_TIMEOUT
+                {"command": "set_theme", "theme": request.theme.value},
+                "theme_set",
+                _COMMAND_TIMEOUT,
             )
-        self.app_link.request(
-            build_navigation_payload(request), expected="navigated", timeout=_COMMAND_TIMEOUT
-        )
+        if request.screen is not None:
+            self.app_link.request(
+                build_navigation_payload(request), expected="navigated", timeout=_COMMAND_TIMEOUT
+            )
         event = self.app_link.request(
             build_screenshot_payload(request), expected="screenshot", timeout=_COMMAND_TIMEOUT
         )
         if event.png is None:
-            raise LiveError(f"app returned no PNG for screen {request.screen!r}")
+            screen = repr(request.screen) if request.screen is not None else "the current state"
+            raise LiveError(f"app returned no PNG for {screen}")
         return request.save_png(event.png)
 
     def stop(self) -> None:

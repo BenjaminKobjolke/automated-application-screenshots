@@ -12,9 +12,10 @@ from screenshot_tool.live_session import LiveError, LiveSession, ShotRequest, Sh
 @pytest.mark.parametrize(
     ("options", "expected"),
     [
-        ({"theme": "dark", "section": "additional_information"}, ShotRequest(
-            "habit_edit", "x.png", ShotTheme.DARK, "additional_information"
-        )),
+        (
+            {"theme": "dark", "section": "additional_information"},
+            ShotRequest("habit_edit", "x.png", ShotTheme.DARK, "additional_information"),
+        ),
         ({"full": True}, ShotRequest("home", "x.png", full=True)),
         ({"record_id": 11551}, ShotRequest("todo_detail", "x.png", record_id=11551)),
         (
@@ -26,6 +27,8 @@ from screenshot_tool.live_session import LiveError, LiveSession, ShotRequest, Sh
             {"theme": "dark", "language": "pt_BR"},
             ShotRequest("home", "x.png", ShotTheme.DARK, language="pt_BR"),
         ),
+        ({}, ShotRequest(None, "x.png")),
+        ({"full": True, "theme": "light"}, ShotRequest(None, "x.png", ShotTheme.LIGHT, full=True)),
     ],
 )
 def test_shot_options_build_typed_request(options, expected):
@@ -37,7 +40,19 @@ def test_shot_options_build_typed_request(options, expected):
     cli, output = make_cli(
         [
             '{"command":"start"}',
-            json.dumps({"command": "shot", "screen": screen, "out": "x.png", **options}),
+            json.dumps(
+                {
+                    "command": "shot",
+                    **(
+                        {"screen": screen}
+                        if any(key in options for key in ("section", "record_id", "language"))
+                        or options == {"full": True}
+                        else {}
+                    ),
+                    "out": "x.png",
+                    **options,
+                }
+            ),
         ],
         session,
     )
@@ -72,7 +87,10 @@ def test_invalid_shot_options_return_errors(options, message):
     session = MagicMock(spec=LiveSession)
     session.start.return_value = "windows"
     cli, output = make_cli(
-        ['{"command":"start"}', json.dumps({"command": "shot", "screen": "home", "out": "x.png", **options})],
+        [
+            '{"command":"start"}',
+            json.dumps({"command": "shot", "screen": "home", "out": "x.png", **options}),
+        ],
         session,
     )
 
@@ -87,7 +105,10 @@ def test_shot_live_error_is_returned_unchanged():
     session.start.return_value = "windows"
     session.shot.side_effect = LiveError("unknown section additional_information for habit_edit")
     cli, output = make_cli(
-        ['{"command":"start"}', '{"command":"shot","screen":"habit_edit","out":"x.png","section":"additional_information"}'],
+        [
+            '{"command":"start"}',
+            '{"command":"shot","screen":"habit_edit","out":"x.png","section":"additional_information"}',
+        ],
         session,
     )
 
@@ -99,3 +120,27 @@ def test_shot_live_error_is_returned_unchanged():
 def test_shot_request_rejects_section_and_full_together():
     with pytest.raises(ValueError, match="section and full cannot be combined"):
         ShotRequest("home", "x.png", section="a", full=True)
+
+
+@pytest.mark.parametrize("field", ["section", "record_id", "language"])
+def test_navigation_options_require_screen(field):
+    session = MagicMock(spec=LiveSession)
+    session.start.return_value = "windows"
+    cli, output = make_cli(
+        ['{"command":"start"}', json.dumps({"command": "shot", "out": "x.png", field: "x"})],
+        session,
+    )
+    cli.run()
+    assert "requires screen" in responses(output)[1]["error"]
+
+
+@pytest.mark.parametrize("screen", ["", 1, None])
+def test_invalid_present_screen_is_rejected(screen):
+    session = MagicMock(spec=LiveSession)
+    session.start.return_value = "windows"
+    cli, output = make_cli(
+        ['{"command":"start"}', json.dumps({"command": "shot", "screen": screen, "out": "x.png"})],
+        session,
+    )
+    cli.run()
+    assert responses(output)[1]["error"] == "screen must be a non-empty string"

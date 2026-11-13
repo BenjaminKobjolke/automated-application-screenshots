@@ -44,10 +44,16 @@ from screenshot_tool.live_types import (
             {"command": "navigate", "screen": "home"},
             {"command": "screenshot", "name": "home", "pixel_ratio": 1.0, "full": True},
         ),
+        (
+            ShotRequest(None, "current.png"),
+            None,
+            {"command": "screenshot", "name": "current", "pixel_ratio": 1.0},
+        ),
     ],
 )
 def test_builds_exact_navigation_and_screenshot_payloads(shot_request, navigation, screenshot):
-    assert build_navigation_payload(shot_request) == navigation
+    if navigation is not None:
+        assert build_navigation_payload(shot_request) == navigation
     assert build_screenshot_payload(shot_request) == screenshot
 
 
@@ -70,3 +76,9 @@ def test_shot_request_wraps_png_write_error(tmp_path: Path):
         request.save_png(b"fake-png")
 
     assert str(path) in error.value.message
+
+
+@pytest.mark.parametrize("kwargs", [{"section": "a"}, {"record_id": 1}, {"language": "de"}])
+def test_current_shot_rejects_navigation_options(kwargs):
+    with pytest.raises(ValueError, match="requires screen"):
+        ShotRequest(None, "x.png", **kwargs)

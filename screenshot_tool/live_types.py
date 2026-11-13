@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
+_CURRENT_SCREEN = "current"
+
 
 class LiveError(RuntimeError):
     """A live-session operation failed, with relevant build output if present."""
@@ -43,9 +45,9 @@ class ShotTheme(str, Enum):
 
 @dataclass(frozen=True)
 class ShotRequest:
-    """Options for capturing a named live screen."""
+    """Options for capturing a named screen or the current live app state."""
 
-    screen: str
+    screen: str | None
     out: str | Path
     theme: ShotTheme | None = None
     section: str | None = None
@@ -56,6 +58,12 @@ class ShotRequest:
     def __post_init__(self) -> None:
         if self.section is not None and self.full:
             raise ValueError("section and full cannot be combined")
+        if self.screen is None and self.section is not None:
+            raise ValueError("section requires screen")
+        if self.screen is None and self.record_id is not None:
+            raise ValueError("record_id requires screen")
+        if self.screen is None and self.language is not None:
+            raise ValueError("language requires screen")
 
     def save_png(self, png: bytes) -> Path:
         """Save the captured PNG, creating its parent directory when needed."""
@@ -84,7 +92,7 @@ def build_screenshot_payload(request: ShotRequest) -> dict[str, object]:
     """Build the app command that captures the requested screen."""
     payload: dict[str, object] = {
         "command": "screenshot",
-        "name": request.screen,
+        "name": request.screen or _CURRENT_SCREEN,
         "pixel_ratio": 1.0,
     }
     if request.full:

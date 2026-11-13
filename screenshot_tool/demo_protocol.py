@@ -12,6 +12,7 @@ KNOWN_EVENTS = (
     "error",
     "screens",
     "navigated",
+    "gestured",
     "theme_set",
     "reset_done",
 )
@@ -79,7 +80,9 @@ def parse_event_line(line: str) -> DemoEvent:
                 raise ValueError("screen needs_login must be a boolean")
             if record_id is not None and not isinstance(record_id, str):
                 raise ValueError("screen record_id must be a string")
-            if not isinstance(sections, list) or any(not isinstance(section, str) for section in sections):
+            if not isinstance(sections, list) or any(
+                not isinstance(section, str) for section in sections
+            ):
                 raise ValueError("screen sections must be a list of strings")
             parsed_screens.append(
                 ScreenInfo(
