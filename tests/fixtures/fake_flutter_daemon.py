@@ -30,6 +30,7 @@ def app_reader(connection: socket.socket) -> None:
     record_id: int | None = None
     language: str | None = None
     gestures: list[str] = []
+    actions: list[str] = []
     with connection, connection.makefile("r", encoding="utf-8") as stream:
         for line in stream:
             command = json.loads(line)
@@ -71,6 +72,7 @@ def app_reader(connection: socket.socket) -> None:
                     record_id = requested_record_id
                     language = command.get("language")
                     gestures = []
+                    actions = []
                     event = {"event": "navigated", "screen": command["screen"]}
             elif name == "gesture":
                 kind = command["kind"]
@@ -87,6 +89,62 @@ def app_reader(connection: socket.socket) -> None:
                 else:
                     gestures.append(kind)
                     event = {"event": "gestured", "kind": kind}
+            elif name == "read_text":
+                actions.append("read_text")
+                event = {
+                    "event": "visible_text",
+                    "entries": [
+                        {
+                            "text": "Open details",
+                            "kind": "button",
+                            "enabled": True,
+                            "bounds": [0.1, 0.2, 0.8, 0.3],
+                        },
+                        {
+                            "text": "Welcome",
+                            "kind": "text",
+                            "enabled": True,
+                            "bounds": [0.1, 0.1, 0.8, 0.18],
+                        },
+                        {
+                            "text": "Name",
+                            "kind": "text_field",
+                            "enabled": True,
+                            "bounds": [0.1, 0.4, 0.9, 0.5],
+                            "label": "Name",
+                            "value": "Ada",
+                        },
+                        {
+                            "text": "Future control",
+                            "kind": "future_control",
+                            "enabled": True,
+                            "bounds": [0.0, 0.0, 1.0, 1.0],
+                        },
+                    ],
+                }
+            elif name == "tap_text":
+                text = command["text"]
+                actions.append(f"tap_text:{text}")
+                if text not in ("Open details", "Name"):
+                    event = {
+                        "event": "error",
+                        "message": 'no visible text matched; candidates: "Open details", "Name"',
+                    }
+                else:
+                    event = {"event": "text_tapped", "text": text}
+            elif name == "tap_key":
+                key = command["key"]
+                actions.append(f"tap_key:{key}")
+                event = {"event": "key_tapped", "key": key}
+            elif name == "type_text":
+                text = command["text"]
+                field = command.get("field")
+                actions.append(f"type_text:{text}:{field}")
+                event = {"event": "text_typed", "text": text}
+            elif name == "press_key":
+                key = command["key"]
+                actions.append(f"press_key:{key}")
+                event = {"event": "key_pressed", "key": key}
             elif name == "screenshot":
                 if (
                     theme is None
@@ -94,6 +152,7 @@ def app_reader(connection: socket.socket) -> None:
                     and record_id is None
                     and language is None
                     and not gestures
+                    and not actions
                     and "full" not in command
                 ):
                     png = PNG
@@ -102,6 +161,7 @@ def app_reader(connection: socket.socket) -> None:
                         f"fake-png;theme={theme};section={section};record_id={record_id};"
                         f"language={language};"
                         f"gestures={','.join(gestures)};"
+                        f"actions={','.join(actions)};"
                         f"full={command.get('full', False)}"
                     ).encode()
                     png = base64.b64encode(state).decode("ascii")

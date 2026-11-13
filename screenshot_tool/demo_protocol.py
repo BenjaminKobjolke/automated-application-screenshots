@@ -4,6 +4,8 @@ import base64
 import json
 from dataclasses import dataclass
 
+from screenshot_tool.visible_text import VisibleTextEntry, parse_visible_text
+
 KNOWN_EVENTS = (
     "demo_started",
     "screenshot",
@@ -15,6 +17,11 @@ KNOWN_EVENTS = (
     "gestured",
     "theme_set",
     "reset_done",
+    "visible_text",
+    "text_tapped",
+    "key_tapped",
+    "text_typed",
+    "key_pressed",
 )
 
 
@@ -44,6 +51,7 @@ class DemoEvent:
     message: str | None = None
     screens: tuple[ScreenInfo, ...] | None = None
     screen: str | None = None
+    entries: tuple[VisibleTextEntry, ...] | None = None
 
 
 def parse_event_line(line: str) -> DemoEvent:
@@ -90,6 +98,9 @@ def parse_event_line(line: str) -> DemoEvent:
                 )
             )
         screens = tuple(parsed_screens)
+    entries = None
+    if "entries" in data:
+        entries = parse_visible_text(data["entries"])
     return DemoEvent(
         event=data["event"],
         demo=data.get("demo"),
@@ -100,4 +111,5 @@ def parse_event_line(line: str) -> DemoEvent:
         message=data.get("message"),
         screens=screens,
         screen=data.get("screen"),
+        entries=entries,
     )

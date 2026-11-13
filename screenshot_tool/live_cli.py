@@ -5,11 +5,13 @@ from __future__ import annotations
 import json
 import re
 import sys
+from dataclasses import dataclass
 from enum import Enum
 from typing import TextIO
 
 from .demo_server import ScreenInfo
 from .live_gesture import parse_gesture_request
+from .live_input import InputKind, InputRequest, PressKey, parse_input_request
 from .live_session import (
     LiveError,
     LiveSession,
@@ -18,6 +20,7 @@ from .live_session import (
     ShotRequest,
     ShotTheme,
 )
+from .visible_text import VisibleTextEntry
 
 # BCP 47 style codes with underscores are accepted for Flutter locale names.
 _LANGUAGE_CODE = re.compile(r"[A-Za-z]{2,3}([-_][A-Za-z0-9]{2,8})*")
@@ -31,7 +34,20 @@ class LiveCommand(str, Enum):
     SCREENS = "screens"
     SHOT = "shot"
     GESTURE = "gesture"
+    READ_TEXT = InputKind.READ_TEXT.value
+    TAP_TEXT = InputKind.TAP_TEXT.value
+    TAP_KEY = InputKind.TAP_KEY.value
+    TYPE_TEXT = InputKind.TYPE_TEXT.value
+    PRESS_KEY = InputKind.PRESS_KEY.value
     STOP = "stop"
+
+
+@dataclass(frozen=True)
+class LiveReply:
+    """One response and whether the command loop should continue."""
+
+    response: dict[str, object]
+    keep_going: bool
 
 
 class LiveCLI:
@@ -53,15 +69,18 @@ class LiveCLI:
         """Serve commands until stop, EOF, or Ctrl+C; always clean up the session."""
         try:
             for line in self._stdin:
-                if not self._dispatch(line):
+                reply = self.respond(line)
+                self._write(reply.response)
+                if not reply.keep_going:
                     break
         except KeyboardInterrupt:
             pass
         finally:
-            self._stop()
+            self.stop()
         return 0
 
-    def _dispatch(self, line: str) -> bool:
+    def respond(self, line: str) -> LiveReply:
+        """Handle one command and return its response without writing it."""
         try:
             request = json.loads(line)
             if not isinstance(request, dict):
@@ -77,8 +96,7 @@ class LiveCLI:
             response["command"] = command
             if "id" in request:
                 response["id"] = request["id"]
-            self._write(response)
-            return kind is not LiveCommand.STOP
+            return LiveReply(response, kind is not LiveCommand.STOP)
         except (json.JSONDecodeError, ValueError, TypeError) as error:
             response = {"ok": False, "error": str(error)}
             has_valid_request_command = (
@@ -90,7 +108,7 @@ class LiveCLI:
                 response["command"] = request["command"]
                 if "id" in request:
                     response["id"] = request["id"]
-            self._write(response)
+            return LiveReply(response, True)
         except LiveError as error:
             response: dict[str, object] = {"ok": False, "error": error.message}
             if error.output:
@@ -100,12 +118,11 @@ class LiveCLI:
                     response["command"] = request["command"]
                 if "id" in request:
                     response["id"] = request["id"]
-            self._write(response)
-        return True
+            return LiveReply(response, True)
 
     def _execute(self, command: LiveCommand, request: dict[str, object]) -> dict[str, object]:
         if command is LiveCommand.STOP:
-            self._stop()
+            self.stop()
             return {"ok": True}
         if command is LiveCommand.START:
             if self._started:
@@ -140,16 +157,42 @@ class LiveCLI:
             gesture = parse_gesture_request(request)
             self._session.gesture(gesture)
             return {"ok": True, "kind": gesture.kind.value}
+        if command in {
+            LiveCommand.READ_TEXT,
+            LiveCommand.TAP_TEXT,
+            LiveCommand.TAP_KEY,
+            LiveCommand.TYPE_TEXT,
+            LiveCommand.PRESS_KEY,
+        }:
+            input_request = parse_input_request(InputKind(command.value), request)
+            event = self._session.send_input(input_request)
+            return _input_response(input_request, event.entries)
         raise ValueError(f"unknown command: {command.value}")
 
     def _write(self, response: dict[str, object]) -> None:
         self._stdout.write(json.dumps(response, separators=(",", ":")) + "\n")
         self._stdout.flush()
 
-    def _stop(self) -> None:
+    def stop(self) -> None:
+        """Stop the underlying live session once."""
         if not self._stopped:
             self._stopped = True
             self._session.stop()
+
+
+def _input_response(
+    request: InputRequest, entries: tuple[VisibleTextEntry, ...] | None
+) -> dict[str, object]:
+    """Serialize a successful connector input reply for the CLI protocol."""
+    if request.kind is InputKind.READ_TEXT:
+        return {
+            "ok": True,
+            "entries": [entry.to_json() for entry in entries or ()],
+        }
+    if request.kind in (InputKind.TAP_TEXT, InputKind.TYPE_TEXT):
+        return {"ok": True, "text": request.text}
+    key = request.key.value if isinstance(request.key, PressKey) else request.key
+    return {"ok": True, "key": key}
 
 
 def _screen_json(screen: ScreenInfo) -> dict[str, object]:

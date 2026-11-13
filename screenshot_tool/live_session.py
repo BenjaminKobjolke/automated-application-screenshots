@@ -7,11 +7,13 @@ from contextlib import nullcontext
 from pathlib import Path
 
 from .android_emulator import AndroidEmulator
+from .demo_protocol import DemoEvent
 from .demo_server import DemoServer, ScreenInfo
 from .flutter_daemon import FlutterDaemon
 from .live_app_link import _POLL_SECONDS, LiveAppLink
 from .live_config import LiveSettings, LiveTarget, device_id
 from .live_gesture import GestureRequest, build_gesture_payload
+from .live_input import InputRequest, build_input_payload
 from .live_types import (
     LiveError,
     ReloadOutcome,
@@ -133,6 +135,13 @@ class LiveSession:
         """Send one gesture to the app and wait for it to settle."""
         self._require_started()
         self.app_link.request(build_gesture_payload(request), "gestured", _COMMAND_TIMEOUT)
+
+    def send_input(self, request: InputRequest) -> DemoEvent:
+        """Send one text or key command to the app and return its typed reply."""
+        self._require_started()
+        return self.app_link.request(
+            build_input_payload(request), request.kind.reply_event, _COMMAND_TIMEOUT
+        )
 
     def shot(self, request: ShotRequest) -> Path:
         """Capture a named screen or the current app state and save its PNG."""
