@@ -23,6 +23,7 @@ falling back to a checkout next to the app's repo.
 | `--compose` | `ALL\|NAME` | Build the config's `compose` steps and exit: the joined tour, slideshow GIFs, inline GIFs (see [CONFIG.md](CONFIG.md#compose-array-optional)). `NAME` matches a step's `output` path or its `type`; omitted, it means all. Combine with `--demo` to record and then build — a failed recording stops the build rather than composing stale inputs. Not combinable with `--list`/`--start-from` | `all` |
 | `--live` | | Start a configured Flutter app and read JSON-lines live commands from stdin until `stop` or EOF. Requires `live` in the config; not combinable with `--demo`, `--compose`, `--list` or `--start-from`. Logs go to stderr and command responses to stdout. See [LIVE.md](LIVE.md) | |
 | `--target` | `windows\|android_emulator` | Override `live.target` for this run; requires `--live` | `live.target` |
+| `--live-device` | `NAME` | Select the AVD mapped to `NAME` in `live.devices`; requires `--live` and the `android_emulator` target | |
 | `--skip-idle-check` | | Start without checking recent keyboard or mouse activity | |
 | `--help`, `-h` | | Show usage help and exit | |
 
@@ -50,6 +51,7 @@ uv run screenshot-tool --config app.json --demo all --compose   # Record, then b
 uv run screenshot-tool --config app.json --list          # What can this config do?
 uv run screenshot-tool --config app.json --live          # Serve live commands
 uv run screenshot-tool --config app.json --live --target windows
+uv run screenshot-tool --config app.json --live --live-device tablet
 ```
 
 ## Exit codes

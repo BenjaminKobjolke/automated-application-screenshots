@@ -6,7 +6,13 @@ from unittest.mock import MagicMock
 import pytest
 from live_cli_helpers import make_cli, responses
 
-from screenshot_tool.live_session import LiveError, LiveSession, ShotRequest, ShotTheme
+from screenshot_tool.live_session import (
+    LiveError,
+    LiveSession,
+    ShotOrientation,
+    ShotRequest,
+    ShotTheme,
+)
 
 
 @pytest.mark.parametrize(
@@ -23,6 +29,10 @@ from screenshot_tool.live_session import LiveError, LiveSession, ShotRequest, Sh
             ShotRequest("todo_detail", "x.png", ShotTheme.DARK, record_id=7),
         ),
         ({"language": "de"}, ShotRequest("home", "x.png", language="de")),
+        (
+            {"orientation": "landscape"},
+            ShotRequest("home", "x.png", orientation=ShotOrientation.LANDSCAPE),
+        ),
         (
             {"theme": "dark", "language": "pt_BR"},
             ShotRequest("home", "x.png", ShotTheme.DARK, language="pt_BR"),
@@ -46,6 +56,7 @@ def test_shot_options_build_typed_request(options, expected):
                     **(
                         {"screen": screen}
                         if any(key in options for key in ("section", "record_id", "language"))
+                        or "orientation" in options
                         or options == {"full": True}
                         else {}
                     ),
@@ -68,6 +79,8 @@ def test_shot_options_build_typed_request(options, expected):
     [
         ({"theme": "blue"}, "theme must be dark or light"),
         ({"theme": None}, "theme must be dark or light"),
+        ({"orientation": "sideways"}, "orientation must be portrait or landscape"),
+        ({"orientation": None}, "orientation must be portrait or landscape"),
         ({"full": 1}, "full must be a boolean"),
         ({"section": ""}, "section must be a non-empty string"),
         ({"section": None}, "section must be a non-empty string"),

@@ -124,3 +124,46 @@ def test_live_requires_config_section_and_rejects_incompatible_flags(tmp_path):
     assert "requires a config with a live section" in missing.stderr
     assert incompatible.returncode != 0
     assert "--live cannot be combined with" in incompatible.stderr
+
+
+def test_live_device_flag_validates_live_target_and_configured_name(tmp_path):
+    windows_config = tmp_path / "windows-live.json"
+    windows_config.write_text(
+        json.dumps({"output_dir": "output", "live": {"target": "windows", "port": 8766}}),
+        encoding="utf-8",
+    )
+    android_config = tmp_path / "android-live.json"
+    android_config.write_text(
+        json.dumps(
+            {
+                "output_dir": "output",
+                "live": {
+                    "target": "android_emulator",
+                    "port": 8766,
+                    "devices": {"phone": "Pixel_9", "tablet": "Pixel_Tablet"},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def invoke(*arguments):
+        return subprocess.run(
+            [sys.executable, "-m", "screenshot_tool.main", *arguments],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+
+    without_live = invoke("--live-device", "phone")
+    wrong_target = invoke("--config", str(windows_config), "--live", "--live-device", "phone")
+    unknown_name = invoke("--config", str(android_config), "--live", "--live-device", "watch")
+
+    assert "--live-device requires --live" in without_live.stderr
+    assert "--live-device requires the android_emulator target" in wrong_target.stderr
+    assert "--live-device 'watch' is not in live.devices (configured: phone, tablet)" in (
+        unknown_name.stderr
+    )

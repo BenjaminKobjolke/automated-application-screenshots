@@ -43,6 +43,13 @@ class ShotTheme(str, Enum):
     LIGHT = "light"
 
 
+class ShotOrientation(str, Enum):
+    """Orientation requested for one Android emulator screenshot."""
+
+    PORTRAIT = "portrait"
+    LANDSCAPE = "landscape"
+
+
 @dataclass(frozen=True)
 class ShotRequest:
     """Options for capturing a named screen or the current live app state."""
@@ -54,6 +61,7 @@ class ShotRequest:
     full: bool = False
     record_id: int | None = None
     language: str | None = None
+    orientation: ShotOrientation | None = None
 
     def __post_init__(self) -> None:
         if self.section is not None and self.full:

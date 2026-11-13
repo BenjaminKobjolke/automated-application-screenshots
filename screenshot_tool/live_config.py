@@ -20,6 +20,7 @@ class LiveSettings:
     target: LiveTarget
     port: int
     avd: str | None = None
+    devices: dict[str, str] = field(default_factory=dict)
     headless: bool = False
     flutter: tuple[str, ...] = ("flutter",)
     run_args: tuple[str, ...] = ()
@@ -31,6 +32,7 @@ class LiveSettings:
 _LIVE_KEYS = {
     "target",
     "avd",
+    "devices",
     "headless",
     "port",
     "flutter",
@@ -50,9 +52,7 @@ def _string_list(
 ) -> tuple[str, ...]:
     value = data.get(key, default)
     is_non_empty_string_list = (
-        isinstance(value, list)
-        and bool(value)
-        and all(isinstance(item, str) for item in value)
+        isinstance(value, list) and bool(value) and all(isinstance(item, str) for item in value)
     )
     if not is_non_empty_string_list:
         _fail(config_path, f"live.{key} must be a non-empty list of strings")
@@ -93,6 +93,12 @@ def parse_live(config_path: Path, data: Any) -> LiveSettings:
     avd = data.get("avd")
     if avd is not None and (not isinstance(avd, str) or not avd):
         _fail(config_path, "live.avd must be a non-empty string when provided")
+    devices = data.get("devices", {})
+    if not isinstance(devices, dict) or any(
+        not isinstance(name, str) or not name or not isinstance(device_avd, str) or not device_avd
+        for name, device_avd in devices.items()
+    ):
+        _fail(config_path, "live.devices must map device names to AVD names")
     headless = data.get("headless", False)
     if not isinstance(headless, bool):
         _fail(config_path, "live.headless must be a boolean")
@@ -121,6 +127,7 @@ def parse_live(config_path: Path, data: Any) -> LiveSettings:
         target=target,
         port=port,
         avd=avd,
+        devices=devices,
         headless=headless,
         flutter=_string_list(config_path, data, "flutter", ["flutter"]),
         run_args=_run_args(config_path, data),

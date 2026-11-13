@@ -30,6 +30,7 @@ def test_live_config_defaults_and_target(tmp_path):
     assert settings.run_args == ()
     assert settings.project_dir == tmp_path.resolve()
     assert settings.app_settings == {}
+    assert settings.devices == {}
     assert settings.start_timeout == 600
 
 
@@ -50,6 +51,39 @@ def test_live_only_config_resolves_project_dir_relative_to_config(tmp_path):
 
     assert settings is not None
     assert settings.project_dir == (tmp_path.parent / "app").resolve()
+
+
+def test_live_devices_parses_name_to_avd_mapping(tmp_path):
+    settings = load_config(
+        write_config(
+            tmp_path,
+            {
+                "output_dir": "shots",
+                "live": {
+                    "target": "android_emulator",
+                    "port": 8766,
+                    "devices": {"phone": "Pixel_9", "tablet": "Pixel_Tablet"},
+                },
+            },
+        )
+    ).live
+
+    assert settings is not None
+    assert settings.devices == {"phone": "Pixel_9", "tablet": "Pixel_Tablet"}
+
+
+@pytest.mark.parametrize("devices", [[], "phone", {"": "Pixel_9"}, {"phone": ""}, {"phone": 1}])
+def test_live_devices_must_map_non_empty_strings(tmp_path, devices):
+    with pytest.raises(SystemExit, match="live.devices must map device names to AVD names"):
+        load_config(
+            write_config(
+                tmp_path,
+                {
+                    "output_dir": "shots",
+                    "live": {"target": "android_emulator", "port": 8766, "devices": devices},
+                },
+            )
+        )
 
 
 @pytest.mark.parametrize("target", ["ios", "", None, 1])

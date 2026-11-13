@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from contextlib import nullcontext
 from pathlib import Path
 
 from .android_emulator import AndroidEmulator
@@ -15,6 +16,7 @@ from .live_types import (
     LiveError,
     ReloadOutcome,
     ReloadResult,
+    ShotOrientation,
     ShotRequest,
     ShotTheme,
     build_navigation_payload,
@@ -25,7 +27,15 @@ _COMMAND_TIMEOUT = 60.0
 _EXIT_GRACE_SECONDS = 0.5
 _UNRESPONSIVE_MESSAGE = "Flutter app stopped responding to hot reload and hot restart"
 
-__all__ = ["LiveError", "LiveSession", "ReloadOutcome", "ReloadResult", "ShotRequest", "ShotTheme"]
+__all__ = [
+    "LiveError",
+    "LiveSession",
+    "ReloadOutcome",
+    "ReloadResult",
+    "ShotOrientation",
+    "ShotRequest",
+    "ShotTheme",
+]
 
 
 class LiveSession:
@@ -127,6 +137,26 @@ class LiveSession:
     def shot(self, request: ShotRequest) -> Path:
         """Capture a named screen or the current app state and save its PNG."""
         self._require_started()
+        if (
+            request.orientation is not None
+            and self.settings.target is not LiveTarget.ANDROID_EMULATOR
+        ):
+            raise LiveError("orientation requires the android_emulator target")
+
+        try:
+            rotation = nullcontext()
+            if request.orientation is not None:
+                assert self.emulator is not None
+                rotation = self.emulator.rotation().locked(
+                    request.orientation is ShotOrientation.LANDSCAPE,
+                    _COMMAND_TIMEOUT,
+                )
+            with rotation:
+                return self._capture_shot(request)
+        except TimeoutError as error:
+            raise LiveError(str(error)) from error
+
+    def _capture_shot(self, request: ShotRequest) -> Path:
         if request.theme is not None:
             self.app_link.request(
                 {"command": "set_theme", "theme": request.theme.value},

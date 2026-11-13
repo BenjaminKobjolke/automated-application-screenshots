@@ -9,6 +9,7 @@ import pytest
 from android_fakes import completed, env_with_sdk, fake_sdk
 
 from screenshot_tool.android_emulator import AndroidEmulator
+from screenshot_tool.emulator_rotation import EmulatorRotation
 
 
 def test_running_serials_parses_only_online_emulators(tmp_path: Path):
@@ -36,12 +37,47 @@ def test_ensure_reuses_running_emulator_without_starting_one(tmp_path: Path):
     runner = MagicMock(spec=subprocess)
     runner.run.side_effect = [
         completed("List of devices attached\nemulator-5556\tdevice\n"),
+        completed("Pixel_8_API_35\n"),
         completed(),
         completed("1\n"),
     ]
     emulator = AndroidEmulator(runner=runner, environ=env_with_sdk(sdk))
 
     assert emulator.ensure("Pixel_8_API_35", headless=True, timeout=5) == "emulator-5556"
+    runner.Popen.assert_not_called()
+
+
+def test_ensure_starts_requested_avd_when_only_a_different_avd_is_running(tmp_path: Path):
+    sdk = fake_sdk(tmp_path / "sdk")
+    runner = MagicMock(spec=subprocess)
+    runner.run.side_effect = [
+        completed("List of devices attached\nemulator-5554\tdevice\n"),
+        completed("Pixel_9\n"),
+        completed("List of devices attached\nemulator-5554\tdevice\nemulator-5556\tdevice\n"),
+        completed(),
+        completed("1\n"),
+    ]
+    process = MagicMock(spec=subprocess.Popen)
+    process.pid = 123
+    process.poll.return_value = None
+    runner.Popen.return_value = process
+    emulator = AndroidEmulator(runner=runner, environ=env_with_sdk(sdk))
+
+    assert emulator.ensure("Pixel_Tablet", headless=True, timeout=5) == "emulator-5556"
+    assert runner.Popen.call_args.args[0][1:3] == ["-avd", "Pixel_Tablet"]
+
+
+def test_ensure_without_avd_reuses_any_running_emulator(tmp_path: Path):
+    sdk = fake_sdk(tmp_path / "sdk")
+    runner = MagicMock(spec=subprocess)
+    runner.run.side_effect = [
+        completed("List of devices attached\nemulator-5554\tdevice\n"),
+        completed(),
+        completed("1\n"),
+    ]
+    emulator = AndroidEmulator(runner=runner, environ=env_with_sdk(sdk))
+
+    assert emulator.ensure(None, headless=False, timeout=5) == "emulator-5554"
     runner.Popen.assert_not_called()
 
 
@@ -124,6 +160,21 @@ def test_stop_leaves_reused_emulator_running():
     runner.Popen.assert_not_called()
 
 
+def test_rotation_requires_a_started_emulator_and_uses_its_adb_path(tmp_path: Path):
+    sdk = fake_sdk(tmp_path / "sdk")
+    runner = MagicMock(spec=subprocess)
+    emulator = AndroidEmulator(runner=runner, environ=env_with_sdk(sdk))
+
+    with pytest.raises(RuntimeError, match="emulator is not started"):
+        emulator.rotation()
+
+    emulator._serial = "emulator-5554"
+    rotation = emulator.rotation()
+
+    assert isinstance(rotation, EmulatorRotation)
+    assert rotation._adb == str(sdk / "platform-tools" / ("adb.exe" if os.name == "nt" else "adb"))
+
+
 def test_wait_for_device_is_bounded_by_remaining_boot_timeout(tmp_path: Path):
     sdk = fake_sdk(tmp_path / "sdk")
     runner = MagicMock(spec=subprocess)
@@ -134,11 +185,9 @@ def test_wait_for_device_is_bounded_by_remaining_boot_timeout(tmp_path: Path):
     emulator = AndroidEmulator(runner=runner, environ=env_with_sdk(sdk))
 
     with pytest.raises(TimeoutError, match="did not become available"):
-        emulator.ensure("Pixel_8_API_35", headless=False, timeout=2)
+        emulator.ensure(None, headless=False, timeout=2)
 
     args, kwargs = runner.run.call_args_list[1]
-    assert args[0][0] == str(
-        sdk / "platform-tools" / ("adb.exe" if os.name == "nt" else "adb")
-    )
+    assert args[0][0] == str(sdk / "platform-tools" / ("adb.exe" if os.name == "nt" else "adb"))
     assert args[0][1:] == ["-s", "emulator-5554", "wait-for-device"]
     assert 0 < kwargs["timeout"] <= 2

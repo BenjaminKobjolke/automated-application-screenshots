@@ -10,7 +10,14 @@ from typing import TextIO
 
 from .demo_server import ScreenInfo
 from .live_gesture import parse_gesture_request
-from .live_session import LiveError, LiveSession, ReloadOutcome, ShotRequest, ShotTheme
+from .live_session import (
+    LiveError,
+    LiveSession,
+    ReloadOutcome,
+    ShotOrientation,
+    ShotRequest,
+    ShotTheme,
+)
 
 # BCP 47 style codes with underscores are accepted for Flutter locale names.
 _LANGUAGE_CODE = re.compile(r"[A-Za-z]{2,3}([-_][A-Za-z0-9]{2,8})*")
@@ -179,6 +186,16 @@ def _shot_request(request: dict[str, object]) -> ShotRequest:
             raise ValueError("theme must be dark or light")
         theme = ShotTheme(theme_value)
 
+    orientation: ShotOrientation | None = None
+    if "orientation" in request:
+        orientation_value = request["orientation"]
+        if orientation_value not in (
+            ShotOrientation.PORTRAIT.value,
+            ShotOrientation.LANDSCAPE.value,
+        ):
+            raise ValueError("orientation must be portrait or landscape")
+        orientation = ShotOrientation(orientation_value)
+
     section: str | None = None
     if "section" in request:
         section_value = request["section"]
@@ -204,4 +221,13 @@ def _shot_request(request: dict[str, object]) -> ShotRequest:
             raise ValueError("language must be a language code such as de or en-US")
         language = language_value
 
-    return ShotRequest(screen, out, theme, section, full, record_id=record_id, language=language)
+    return ShotRequest(
+        screen,
+        out,
+        theme,
+        section,
+        full,
+        record_id=record_id,
+        language=language,
+        orientation=orientation,
+    )

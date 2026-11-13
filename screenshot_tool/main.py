@@ -54,7 +54,7 @@ def main() -> int:
     """
     setup_utf8_console()
     parser = argparse.ArgumentParser(
-    description="Capture screenshots of configured desktop and web applications",
+        description="Capture screenshots of configured desktop and web applications",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -143,6 +143,11 @@ Examples:
         help="Override the live config target",
     )
     parser.add_argument(
+        "--live-device",
+        metavar="NAME",
+        help="Use the AVD named NAME in live.devices for this live run",
+    )
+    parser.add_argument(
         "--skip-idle-check",
         action="store_true",
         help="Start without checking whether someone is using the PC",
@@ -154,6 +159,8 @@ Examples:
         parser.error("--live cannot be combined with --demo, --compose, --list or --start-from")
     if args.target and not args.live:
         parser.error("--target requires --live")
+    if args.live_device and not args.live:
+        parser.error("--live-device requires --live")
     if (args.demo or args.compose) and (args.list or args.start_from):
         parser.error("--demo/--compose cannot be combined with --list or --start-from")
     if args.stills_only and (not args.demo or args.compose):
@@ -179,6 +186,16 @@ Examples:
         parser.error("--live requires a config with a live section")
     if args.live and args.target:
         live_settings = replace(live_settings, target=LiveTarget(args.target))
+    if args.live_device:
+        if live_settings.target is not LiveTarget.ANDROID_EMULATOR:
+            parser.error("--live-device requires the android_emulator target")
+        if args.live_device not in live_settings.devices:
+            configured = ", ".join(sorted(live_settings.devices)) or "none"
+            parser.error(
+                f"--live-device {args.live_device!r} is not in live.devices "
+                f"(configured: {configured})"
+            )
+        live_settings = replace(live_settings, avd=live_settings.devices[args.live_device])
 
     if args.live:
         AppLogger.configure(stream=sys.stderr)

@@ -6,10 +6,15 @@ import pytest
 
 from screenshot_tool.live_types import (
     LiveError,
+    ShotOrientation,
     ShotRequest,
     build_navigation_payload,
     build_screenshot_payload,
 )
+
+
+def test_shot_orientation_enum_values():
+    assert [value.value for value in ShotOrientation] == ["portrait", "landscape"]
 
 
 @pytest.mark.parametrize(

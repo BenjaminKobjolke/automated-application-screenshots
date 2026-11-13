@@ -165,7 +165,8 @@ Use `"web": { ... }` instead of `launch` or `network` for browser targets. A dem
 Settings for `screenshot-tool --live`, which starts a Flutter app once and accepts JSON-lines commands until stopped. The full protocol and setup are in [LIVE.md](LIVE.md). The example `config/example-network.json` includes a live section.
 
 - `target` (required): `windows` or `android_emulator`; `--target` can override it for one run.
-- `avd` (string, Android only when starting a new emulator): emulator name. An already running emulator is reused.
+- `avd` (string, Android): default AVD name. When set, only a running emulator with this exact AVD name is reused; otherwise the named AVD is started.
+- `devices` (object, optional, Android): map short names to AVD names, for selection with `--live-device`, e.g. `{"phone": "Pixel_9", "tablet": "Pixel_Tablet"}`.
 - `headless` (boolean, default `false`): start a new emulator without a window.
 - `port` (integer): TCP port used by the app to connect. The tool derives `AUTOMATION_HOST` (`127.0.0.1` for Windows, `10.0.2.2` for the Android emulator).
 - `flutter` (non-empty string array, default `["flutter"]`): command prefix, such as `["fvm", "flutter"]`.

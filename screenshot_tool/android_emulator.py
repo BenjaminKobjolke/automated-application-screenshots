@@ -13,6 +13,8 @@ from typing import Any, Protocol
 
 import psutil
 
+from screenshot_tool.emulator_rotation import EmulatorRotation
+
 _BOOT_POLL_SECONDS = 1.0
 _PROCESS_STOP_TIMEOUT = 3.0
 _SDK_ENV_VARS = ("ANDROID_HOME", "ANDROID_SDK_ROOT")
@@ -76,9 +78,7 @@ class AndroidEmulator:
         for line in result.stdout.splitlines()[1:]:
             columns = line.split()
             is_online_emulator = (
-                len(columns) >= 2
-                and columns[0].startswith("emulator-")
-                and columns[1] == "device"
+                len(columns) >= 2 and columns[0].startswith("emulator-") and columns[1] == "device"
             )
             if is_online_emulator:
                 serials.append(columns[0])
@@ -87,9 +87,17 @@ class AndroidEmulator:
     def ensure(self, avd: str | None, headless: bool, timeout: float) -> str:
         """Reuse an online emulator or launch the requested AVD and await boot."""
         existing = self.running_serials()
-        if existing:
-            self._serial = existing[0]
+        if avd is None:
+            if existing:
+                self._serial = existing[0]
+            else:
+                raise ValueError("live.avd is required when no Android emulator is running")
         else:
+            self._serial = next(
+                (serial for serial in existing if self.avd_name(serial) == avd), None
+            )
+
+        if self._serial is None:
             if not avd:
                 raise ValueError("live.avd is required when no Android emulator is running")
             command = [self._emulator_path(), "-avd", avd]
@@ -104,7 +112,7 @@ class AndroidEmulator:
                 stderr=subprocess.DEVNULL,
             )
             self._owns_emulator = True
-            self._serial = self._wait_for_serial(timeout)
+            self._serial = self._wait_for_serial(timeout, ignore=set(existing))
 
         self._wait_for_boot(self._serial, timeout)
         return self._serial
@@ -127,21 +135,48 @@ class AndroidEmulator:
         self._serial = None
         self._owns_emulator = False
 
-    def _wait_for_serial(self, timeout: float) -> str:
+    @property
+    def serial(self) -> str | None:
+        """Return the serial of the emulator selected by this driver."""
+        return self._serial
+
+    def rotation(self) -> EmulatorRotation:
+        """Create a rotation controller for the selected emulator."""
+        if self._serial is None:
+            raise RuntimeError("emulator is not started")
+        return EmulatorRotation(self._runner, self.adb_path(), self._serial)
+
+    def avd_name(self, serial: str) -> str:
+        """Return the AVD name associated with an emulator serial, if known."""
+        result = self._runner.run(
+            [self.adb_path(), "-s", serial, "emu", "avd", "name"],
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+        return next((line.strip() for line in result.stdout.splitlines() if line.strip()), "")
+
+    def _wait_for_serial(self, timeout: float, ignore: set[str] | None = None) -> str:
         deadline = time.monotonic() + timeout
+        ignored = ignore or set()
         while time.monotonic() < deadline:
             if self._process is not None and self._process.poll() is not None:
                 raise RuntimeError("Android emulator exited before connecting to adb")
             serials = self.running_serials()
-            if serials:
-                return serials[0]
+            available = [serial for serial in serials if serial not in ignored]
+            if available:
+                return available[0]
             time.sleep(min(_BOOT_POLL_SECONDS, max(0, deadline - time.monotonic())))
         raise TimeoutError("Android emulator did not connect to adb before timeout")
 
-    def _adb_path(self) -> str:
+    def adb_path(self) -> str:
+        """Return the resolved adb executable path."""
         if self._adb is None:
             self._adb = find_sdk_program(*_ADB, self._environ)
         return self._adb
+
+    def _adb_path(self) -> str:
+        return self.adb_path()
 
     def _emulator_path(self) -> str:
         if self._emulator is None:

@@ -12,6 +12,7 @@ Add a `live` object to the app's screenshot config:
   "live": {
     "target": "android_emulator",
     "avd": "Pixel_7_API_34",
+    "devices": {"phone": "Pixel_9", "tablet": "Pixel_Tablet"},
     "headless": false,
     "port": 8766,
     "flutter": ["fvm", "flutter"],
@@ -23,7 +24,7 @@ Add a `live` object to the app's screenshot config:
 }
 ```
 
-`target` is `windows` or `android_emulator`. `--target` can override it for one run. For Android, the tool reuses an already running emulator or starts the configured `avd`; `headless: true` starts a new emulator without a window. A new emulator starts with `-crash-report-mode disabled`, so a pending crash report from an earlier crash never blocks start-up. Windows Flutter needs an unlocked interactive desktop. Android can run headless.
+`target` is `windows` or `android_emulator`. `--target` can override it for one run. For Android, `avd` is the default emulator and `devices` optionally maps short names to AVD names. Pass `--live-device NAME` to select one of those names for a run. The tool matches a requested AVD exactly: if a different emulator is already running, it starts the requested AVD and stops only the emulator it started when the session receives `stop`; a matching emulator that was already running is reused and left open. Without an AVD request, the first running emulator is reused. `headless: true` starts a new emulator without a window. A new emulator starts with `-crash-report-mode disabled`, so a pending crash report from an earlier crash never blocks start-up. Windows Flutter needs an unlocked interactive desktop. Android can run headless.
 
 `emulator` and `adb` are taken from PATH, otherwise from `ANDROID_HOME` or `ANDROID_SDK_ROOT` (`emulator/`, `platform-tools/`); if none has them, `start` fails with an error naming the missing program and where it looked.
 
@@ -38,6 +39,7 @@ Start the tool from a terminal:
 ```text
 uv run screenshot-tool --config path/to/app.json --live
 uv run screenshot-tool --config path/to/app.json --live --target windows
+uv run screenshot-tool --config path/to/app.json --live --live-device tablet
 ```
 
 The process reads one JSON object per line from stdin and writes exactly one JSON response line to stdout. Logs go to stderr. A caller can include an `id`; the matching response echoes it.
@@ -51,14 +53,17 @@ The process reads one JSON object per line from stdin and writes exactly one JSO
 {"command":"stop","id":6}
 ```
 
-`start` launches the app and resets it. `screens` returns the connector's screen registry. `shot` navigates to the requested screen and saves its PNG to `out`. It accepts optional `theme` (`dark` or `light`), `section` (a non-empty key registered for that screen), `full` (`true` for a stitched full-length PNG), `record_id` (an integer id for the record the screen opens, such as a todo id; only for screens whose `screens` entry has `record_id`), and `language` (a UI language code such as `de` or `en-US`, passed to the app's prepare callback on `navigate`). For example:
+`start` launches the app and resets it. `screens` returns the connector's screen registry. `shot` navigates to the requested screen and saves its PNG to `out`. It accepts optional `theme` (`dark` or `light`), `section` (a non-empty key registered for that screen), `full` (`true` for a stitched full-length PNG), `record_id` (an integer id for the record the screen opens, such as a todo id; only for screens whose `screens` entry has `record_id`), `language` (a UI language code such as `de` or `en-US`, passed to the app's prepare callback on `navigate`), and `orientation` (`portrait` or `landscape`, Android only). Orientation is restored after each shot, and natural tablet orientation is handled automatically. For example:
 
 ```json
 {"command":"shot","screen":"habit_edit","out":"output/habit-edit.png","theme":"dark","section":"additional_information"}
 {"command":"shot","screen":"home","out":"output/home-full.png","full":true}
 {"command":"shot","screen":"todo_detail","out":"output/todo-11551.png","record_id":11551}
 {"command":"shot","screen":"home","out":"output/home-de.png","language":"de"}
+{"command":"shot","screen":"browser","out":"output/browser-tablet-landscape.png","orientation":"landscape"}
 ```
+
+Callers such as the Tickets Watcher can read the keys of `live.devices` to list available devices. Android orientation values are always `portrait` and `landscape`.
 
 `section` and `full` cannot be combined. The language applies to that shot only; a shot without it sends no language and the app opens in its default language. An app that does not apply the requested language also shows its default language. A request without the other optional fields keeps the existing behavior. `screens` includes `sections` only for screens that register them and `record_id` (the id's meaning) only for screens that accept one. An id sent to a screen that takes none returns the app's error as `ok:false`. The request `id` remains a response-correlation id and is never forwarded as a record id. Invalid option values and connector errors return `ok:false` with an `error` message. Reload tries hot reload, hot restart, then relaunch if Flutter exits. Its `outcome` is `reloaded`, `restarted`, `relaunched`, `compile_error`, `unresponsive` or `failed`. An `unresponsive` result means the app did not answer the hot restart; the tool stops the Flutter process and the next `reload` relaunches it. Compile details are returned in `output`. Send `stop` or close stdin to clean up the Flutter process and any emulator this tool started. An emulator that was already running is left open.
 
