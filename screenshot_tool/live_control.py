@@ -154,7 +154,9 @@ class ControlServer:
             self._server.close()
 
 
-def send_line(folder: str | Path, line: str) -> dict[str, object]:
+def send_line(
+    folder: str | Path, line: str, timeout: float | None = None
+) -> dict[str, object]:
     """Send one command to a session and return its JSON response."""
     session = SessionFile.read(folder)
     if session is None:
@@ -163,7 +165,7 @@ def send_line(folder: str | Path, line: str) -> dict[str, object]:
         with socket.create_connection(
             ("127.0.0.1", session.port), timeout=_CONNECT_TIMEOUT
         ) as connection:
-            connection.settimeout(session.reply_timeout)
+            connection.settimeout(session.reply_timeout if timeout is None else timeout)
             request = session.token.encode("utf-8") + b"\n" + line.encode("utf-8") + b"\n"
             connection.sendall(request)
             response_line = _receive_lines(connection, 1)[0]

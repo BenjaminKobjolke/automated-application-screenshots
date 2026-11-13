@@ -23,6 +23,9 @@ from .process_tree import kill_process_tree
 _POLL_SECONDS = 0.05
 _SESSION_FILE_TIMEOUT = 10.0
 _SERVER_MODULE = "screenshot_tool.live_detached"
+_ANDROID_START_STAGES = 4
+_OTHER_START_STAGES = 2
+_START_REPLY_MARGIN_SECONDS = 60
 
 
 def start(
@@ -61,7 +64,9 @@ def start(
         else:
             raise SessionGone("timed out waiting for the live session server to become ready")
 
-        response = send_line(directory, '{"command":"start"}')
+        response = send_line(
+            directory, '{"command":"start"}', timeout=start_reply_timeout(settings)
+        )
         if response.get("ok") is True:
             return _write_response(response, output, 0)
         _stop_or_kill(directory, session)
@@ -81,6 +86,17 @@ def send(folder: str | Path, line: str, output: TextIO | None = None) -> int:
     except SessionGone as error:
         return _write_response({"ok": False, "error": str(error)}, output, 3)
     return _write_response(response, output, 0 if response.get("ok") is True else 1)
+
+
+def start_reply_timeout(settings: LiveSettings) -> float:
+    """Allow one timeout per bounded startup stage, plus the existing margin."""
+    # Android adds adb serial and emulator boot waits before Flutter and app connection/reset.
+    stages = (
+        _ANDROID_START_STAGES
+        if settings.target is LiveTarget.ANDROID_EMULATOR
+        else _OTHER_START_STAGES
+    )
+    return float(settings.start_timeout * stages + _START_REPLY_MARGIN_SECONDS)
 
 
 def stop(folder: str | Path, output: TextIO | None = None) -> int:
