@@ -28,13 +28,11 @@ import sys
 from dataclasses import replace
 from pathlib import Path
 
-from . import config, idle_guard
+from . import config, idle_guard, live_main
 from .app_logger import AppLogger
 from .cli import ScreenshotCLI
 from .config_listing import list_config
-from .live_cli import LiveCLI
-from .live_config import LiveSettings, LiveTarget
-from .live_session import LiveSession
+from .live_config import LiveSettings
 from .web_config import WebDevice
 
 
@@ -132,44 +130,22 @@ Examples:
         "or type matches NAME). Combine with --demo to record and build in one run.",
     )
 
-    parser.add_argument(
-        "--live",
-        action="store_true",
-        help="Keep a Flutter app running and accept JSON-lines live commands",
-    )
-    parser.add_argument(
-        "--target",
-        choices=[target.value for target in LiveTarget],
-        help="Override the live config target",
-    )
-    parser.add_argument(
-        "--live-device",
-        metavar="NAME",
-        help="Use the AVD named NAME in live.devices for this live run",
-    )
-    parser.add_argument(
-        "--skip-idle-check",
-        action="store_true",
-        help="Start without checking whether someone is using the PC",
-    )
+    live_main.add_arguments(parser)
 
     args = parser.parse_args()
 
-    if args.live and (args.demo or args.compose or args.list or args.start_from):
-        parser.error("--live cannot be combined with --demo, --compose, --list or --start-from")
-    if args.target and not args.live:
-        parser.error("--target requires --live")
-    if args.live_device and not args.live:
-        parser.error("--live-device requires --live")
+    live_main.validate_args(parser, args)
+    if live_main.is_one_shot(args):
+        return live_main.dispatch_one_shot(args)
     if (args.demo or args.compose) and (args.list or args.start_from):
         parser.error("--demo/--compose cannot be combined with --list or --start-from")
     if args.stills_only and (not args.demo or args.compose):
         parser.error("--stills-only requires --demo and cannot be combined with --compose")
     if args.device == WebDevice.MOBILE.value and (
-        args.live or args.demo or args.compose or args.list
+        args.live or args.live_start or args.demo or args.compose or args.list
     ):
         parser.error("--device mobile cannot be combined with --live, --demo, --compose or --list")
-    if args.full_page and (args.live or args.demo or args.compose or args.list):
+    if args.full_page and (args.live or args.live_start or args.demo or args.compose or args.list):
         parser.error("--full-page cannot be combined with --live, --demo, --compose or --list")
 
     if args.config:
@@ -181,30 +157,16 @@ Examples:
     if args.full_page and config.settings.web is None:
         parser.error("--full-page requires a config with a web section")
 
-    live_settings = config.settings.live
-    if args.live and live_settings is None:
-        parser.error("--live requires a config with a live section")
-    if args.live and args.target:
-        live_settings = replace(live_settings, target=LiveTarget(args.target))
-    if args.live_device:
-        if live_settings.target is not LiveTarget.ANDROID_EMULATOR:
-            parser.error("--live-device requires the android_emulator target")
-        if args.live_device not in live_settings.devices:
-            configured = ", ".join(sorted(live_settings.devices)) or "none"
-            parser.error(
-                f"--live-device {args.live_device!r} is not in live.devices "
-                f"(configured: {configured})"
-            )
-        live_settings = replace(live_settings, avd=live_settings.devices[args.live_device])
+    live_settings = live_main.resolve_settings(args, parser, config.settings.live)
 
-    if args.live:
+    if args.live or args.live_start:
         AppLogger.configure(stream=sys.stderr)
 
     shows = idle_guard.shows_windows(
         list_mode=args.list,
         demo=bool(args.demo),
         compose=bool(args.compose),
-        live=args.live,
+        live=args.live or args.live_start is not None,
         live_settings=live_settings,
         web_settings=config.settings.web,
         network_settings=config.settings.network,
@@ -215,7 +177,7 @@ Examples:
     try:
         return _run(args, live_settings)
     finally:
-        if warned:
+        if warned and args.live_start is None:
             idle_guard.notify_done()
 
 
@@ -223,8 +185,10 @@ def _run(args: argparse.Namespace, live_settings: LiveSettings | None) -> int:
     """Dispatch a parsed screenshot command to its selected workflow."""
     if args.live:
         assert live_settings is not None
-        AppLogger.info("Starting live screenshot session")
-        return LiveCLI(LiveSession(live_settings), sys.stdin, sys.stdout).run()
+        return live_main.run_live(args, live_settings)
+    if args.live_start is not None:
+        assert live_settings is not None
+        return live_main.run_live(args, live_settings)
 
     if args.list:
         list_config()
