@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import time
 from contextlib import nullcontext
+from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 from .android_emulator import AndroidEmulator
 from .demo_protocol import DemoEvent
@@ -130,6 +132,17 @@ class LiveSession:
         self._require_started()
         event = self.app_link.request({"command": "list_screens"}, "screens", _COMMAND_TIMEOUT)
         return event.screens or ()
+
+    def reset(self, app_settings: dict[str, Any] | None) -> None:
+        """Reset the app and optionally replace settings used by later reconnects."""
+        self._require_started()
+        if app_settings is not None:
+            self.settings = replace(self.settings, app_settings=app_settings)
+        self.app_link.request(
+            {"command": "reset", "settings": self.settings.app_settings},
+            "reset_done",
+            _COMMAND_TIMEOUT,
+        )
 
     def gesture(self, request: GestureRequest) -> None:
         """Send one gesture to the app and wait for it to settle."""

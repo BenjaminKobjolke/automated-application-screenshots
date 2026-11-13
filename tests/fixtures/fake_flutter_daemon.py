@@ -36,6 +36,10 @@ def app_reader(connection: socket.socket) -> None:
             command = json.loads(line)
             name = command.get("command")
             if name == "reset":
+                reset_log = os.environ.get("FLUTTER_FAKE_RESETS")
+                if reset_log:
+                    with Path(reset_log).open("a", encoding="utf-8") as stream:
+                        stream.write(json.dumps(command.get("settings")) + "\n")
                 event: dict[str, object] = {"event": "reset_done"}
             elif name == "list_screens":
                 event = {
@@ -172,6 +176,8 @@ def app_reader(connection: socket.socket) -> None:
 
 
 def connect_app(host: str, port: int) -> None:
+    if host == "10.0.2.2":
+        host = "127.0.0.1"  # The emulator uses this alias to reach the host loopback.
     deadline = time.monotonic() + 15
     while time.monotonic() < deadline:
         try:

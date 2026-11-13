@@ -39,6 +39,7 @@ class LiveCommand(str, Enum):
     TAP_KEY = InputKind.TAP_KEY.value
     TYPE_TEXT = InputKind.TYPE_TEXT.value
     PRESS_KEY = InputKind.PRESS_KEY.value
+    RESET = "reset"
     STOP = "stop"
 
 
@@ -132,6 +133,12 @@ class LiveCLI:
             return {"ok": True, "device": device}
         if not self._started:
             raise LiveError("not started")
+        if command is LiveCommand.RESET:
+            app_settings = request.get("app_settings")
+            if "app_settings" in request and not isinstance(app_settings, dict):
+                raise ValueError("app_settings must be an object")
+            self._session.reset(app_settings if isinstance(app_settings, dict) else None)
+            return {"ok": True}
         if command is LiveCommand.RELOAD:
             result = self._session.reload()
             succeeded = result.outcome not in {
