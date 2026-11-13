@@ -1,6 +1,6 @@
 # Live Flutter sessions
 
-Live mode is for quick UI iteration. The screenshot tool starts Flutter once, keeps the app and its connector connection alive, then accepts commands to list screens, reload code, capture a named screen, forward live gestures, read visible text, tap by text or key, type text, and press keys. Detached calls let a caller start, control and stop a session with separate one-shot commands.
+Live mode is for quick UI iteration. The screenshot tool starts Flutter once, keeps the app and its connector connection alive, then accepts commands to list screens, reload code, capture a named screen, forward live gestures, read visible text, tap by text or key, type text, press keys, and reset app settings. Detached calls let a caller start, control and stop a session with separate one-shot commands.
 
 ## Configure an app
 
@@ -28,7 +28,7 @@ Add a `live` object to the app's screenshot config:
 
 `emulator` and `adb` are taken from PATH, otherwise from `ANDROID_HOME` or `ANDROID_SDK_ROOT` (`emulator/`, `platform-tools/`); if none has them, `start` fails with an error naming the missing program and where it looked.
 
-`port` is the local TCP port the app connects to. The tool derives `AUTOMATION_HOST`: Windows uses `127.0.0.1:<port>` and the Android emulator uses `10.0.2.2:<port>`. `flutter` is a command prefix (`["flutter"]` by default), `run_args` adds arguments to `flutter run`, and `project_dir` resolves relative to the config file. `app_settings` are sent with each reset. Keep credentials out of committed example configs; use a local config for test account tokens.
+`port` is the local TCP port the app connects to. The tool derives `AUTOMATION_HOST`: Windows uses `127.0.0.1:<port>` and the Android emulator uses `10.0.2.2:<port>`. `flutter` is a command prefix (`["flutter"]` by default), `run_args` adds arguments to `flutter run`, and `project_dir` resolves relative to the config file. `app_settings` are sent with each reset. A live `reset` command may replace them for this session; the replacement is used for later resets and after app reconnects. Keep credentials out of committed example configs; use a local config for test account tokens.
 
 `start_timeout` covers Flutter's build, app launch, and connection. Reload, navigation, and screenshot requests have a 60 second timeout.
 
@@ -55,7 +55,8 @@ The process reads one JSON object per line from stdin and writes exactly one JSO
 {"command":"tap_key","key":"details_button","id":8}
 {"command":"type_text","text":"hello","field":"Name","id":9}
 {"command":"press_key","key":"escape","id":10}
-{"command":"stop","id":11}
+{"command":"reset","app_settings":{"demo_account_token":"recipient"},"id":11}
+{"command":"stop","id":12}
 ```
 
 `start` launches the app and resets it. `screens` returns the connector's screen registry. `shot` navigates to the requested screen and saves its PNG to `out`. It accepts optional `theme` (`dark` or `light`), `section` (a non-empty key registered for that screen), `full` (`true` for a stitched full-length PNG), `record_id` (an integer id for the record the screen opens, such as a todo id; only for screens whose `screens` entry has `record_id`), `language` (a UI language code such as `de` or `en-US`, passed to the app's prepare callback on `navigate`), and `orientation` (`portrait` or `landscape`, Android only). Orientation is restored after each shot, and natural tablet orientation is handled automatically. For example:
@@ -79,6 +80,8 @@ Before `start`, commands other than `stop` return `{"ok":false,"error":"not star
 `read_text` returns visible entries in app reading order. Each entry has `text`, `kind` (`text`, `button` or `text_field`), `enabled` and `bounds` (`[left, top, right, bottom]` fractions of the app view). Text fields may also include `label`, `hint` and `value`; absent optional fields are omitted. Unknown entry kinds are skipped so a newer connector can add kinds without breaking older tools.
 
 `tap_text` requires a non-empty `text`. It matches exactly by default; set `match` to `contains` for a substring match. `index` optionally selects a zero-based match when more than one item matches. If no item matches, or several match without an index, the connector error names the candidates. `tap_key` requires a non-empty `key` matching a widget's `ValueKey<String>`. `type_text` requires non-empty `text` and types into the focused field; optional `field` first focuses a field by its label or hint. `press_key` requires one of `enter`, `tab`, `shift_tab`, `escape`, `backspace`, `arrow_up`, `arrow_down`, `arrow_left` or `arrow_right`.
+
+`reset` sends the app's existing reset command. `app_settings` is optional and must be an object when supplied. Supplying it replaces the session's current settings; omitting it reapplies those settings. The replacement also applies after a hot restart or relaunch. A successful reset replies `{"ok":true,"command":"reset"}` (and echoes `id` when provided).
 
 Successful replies use the connector's event and are returned to the CLI as `ok:true`: `read_text` includes `entries`; `tap_text` and `type_text` include `text`; `tap_key` and `press_key` include `key`. A connector `error` event becomes `ok:false` with its message, and the live session remains available for another command.
 
@@ -131,6 +134,8 @@ The connector connects to `AUTOMATION_HOST` over TCP and handles one JSON comman
 | `{"command":"screenshot","name":"current","pixel_ratio":1.0}` | Existing `screenshot` event; sent without `navigate` for a current-state shot |
 | `{"command":"reset","settings":{}}` | `{"event":"reset_done"}` |
 
+The live `reset` command forwards this existing connector command and waits for `reset_done`.
+
 The `section`, `record_id` and `language` fields on `navigate` and the `full` field on `screenshot` are optional. `list_screens` screen items may include a `sections` array of registered section keys and a `record_id` string describing the accepted id (for example, `todo id`). See the connector's `docs/LIVE_SCREENS.md` for registering record screens. Apps must expose a theme hook to support `set_theme`; when no hook is available they should send an `error` event such as `theme switching is not supported by this app`.
 
 Any operation can reply with the existing `error` event and a message. After a hot restart the app reconnects; the tool accepts the new connection and resets it before continuing. The shared connector guide covers screen registration, debug-only use, test login setup, and screen preparation.
@@ -164,6 +169,22 @@ Each `--live-send` call accepts any live JSON command, including `shot` with `ou
 Exit codes are `0` for success (including stopping an already stopped session), `1` for a live command or startup failure, `2` for invalid command-line usage, and `3` when `--live-send` cannot find or reach a session. A second start using a folder that already has a live session is refused.
 
 The session folder contains `live-session.json` with the loopback port, random per-session token and process id, plus `live.log` with the detached server output. The control server listens on `127.0.0.1` only and requires its session token. `--live-stop` is idempotent: it ends the Flutter session and removes the session file; calling it when no session exists succeeds and reports `stopped:false`.
+
+#### Android emulator sessions
+
+Configure `live.target` as `android_emulator`, or pass `--target android_emulator` with `--live-start`. Select a named AVD from `live.devices` with `--live-device NAME`. The requested AVD is reused when it is already running; otherwise the session starts it. `--live-stop` shuts down only an emulator started by that session. The start response's `device` field is the adb serial, for example `emulator-5554`; use it to open an app link:
+
+```text
+adb -s emulator-5554 shell am start -a android.intent.action.VIEW -d <url>
+```
+
+The start call waits up to `4 × start_timeout + 60` seconds for Android startup, Flutter, and the app reset. Android startup does not show the Windows idle countdown. If startup fails, the session stops any emulator it started and leaves no live session running. Set `headless: true` for an agent that does not need an emulator window. `adb` and `emulator` are found on PATH or in the configured Android SDK folders, as described under [configuration](#configure-an-app).
+
+Use `reset` to switch account settings in the same emulator session. The supplied object replaces the previous settings and remains active after reconnects:
+
+```text
+uv run screenshot-tool --live-send path/to/session '{"command":"reset","app_settings":{"demo_account_token":"recipient"}}'
+```
 
 ### Environment
 
