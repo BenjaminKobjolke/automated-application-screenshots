@@ -83,6 +83,24 @@ def test_windows_run_command_uses_windows_host():
     ]
 
 
+def test_start_inherits_callers_environment(monkeypatch):
+    calls = []
+    process = MagicMock()
+    process.poll.return_value = None
+    monkeypatch.setattr(
+        "screenshot_tool.flutter_daemon.subprocess.Popen",
+        lambda *args, **kwargs: calls.append((args, kwargs)) or process,
+    )
+    thread = MagicMock()
+    monkeypatch.setattr("screenshot_tool.flutter_daemon.threading.Thread", lambda **_kwargs: thread)
+
+    FlutterDaemon(settings()).start("emulator-5556")
+
+    assert len(calls) == 1
+    assert "env" not in calls[0][1]
+    thread.start.assert_called_once_with()
+
+
 def test_restart_requires_explicit_zero_result_code(monkeypatch):
     daemon = FlutterDaemon(settings())
     daemon._process = MagicMock()
