@@ -61,14 +61,21 @@ def start_servers(
                 """
             tall_content = ""
             html_head = ""
+            page_style = ""
             if path == "/tall":
                 html_head = (
                     "<head><meta name='viewport' "
                     "content='width=device-width, initial-scale=1'></head>"
                 )
                 tall_content = "<div style='height:2000px'></div><footer>Footer</footer>"
+            elif path == "/anchors":
+                page_style = "scroll-behavior:smooth"
+                tall_content = """<div style="height:900px"></div>
+                    <div id="faq" style="height:300px;background:#22aa44;scroll-margin-top:40px"></div>
+                    <div style="height:600px"></div>
+                    <div id="demos" style="height:300px;background:#2244aa;scroll-margin-top:40px"></div>"""
             body = (
-                f"<html>{html_head}<body style='margin:0;background:#aa2211'><h1>{path}</h1>"
+                f"<html style='{page_style}'>{html_head}<body style='margin:0;background:#aa2211'><h1>{path}</h1>"
                 f"{tall_content}<script>{script}</script></body></html>"
             ).encode()
             self.send_response(200)

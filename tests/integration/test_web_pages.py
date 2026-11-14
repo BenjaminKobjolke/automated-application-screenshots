@@ -46,6 +46,70 @@ def test_web_pages_cli_captures_each_configured_page(tmp_path):
         stop_servers(app, other, threads)
 
 
+def test_web_pages_cli_lands_on_fragment_after_same_page_fragment(tmp_path):
+    require_edge()
+    app, other, threads, _requests = start_servers()
+    try:
+        cfg = tmp_path / "web.json"
+        cfg.write_text(
+            json.dumps(
+                {
+                    "output_dir": str(tmp_path / "out"),
+                    "web": {
+                        "base_url": f"http://127.0.0.1:{app.server_port}",
+                        "viewport": {"width": 320, "height": 240},
+                        "headless": True,
+                        "pages": [
+                            {"name": "faq", "path": "/anchors#faq"},
+                            {"name": "demos", "path": "/anchors#demos"},
+                        ],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        config.load_config(cfg)
+
+        assert WebPagesCLI(config.settings.web).run() == 0
+
+        output = tmp_path / "out" / "pages"
+        for name, target_color in (("faq", (34, 170, 68)), ("demos", (34, 68, 170))):
+            with Image.open(output / f"{name}.png") as image:
+                assert image.getpixel((10, 45))[:3] == target_color
+                assert image.getpixel((10, 20))[:3] == (170, 34, 17)
+    finally:
+        stop_servers(app, other, threads)
+
+
+def test_web_pages_cli_saves_screenshot_when_fragment_target_is_missing(tmp_path):
+    require_edge()
+    app, other, threads, _requests = start_servers()
+    try:
+        cfg = tmp_path / "web.json"
+        cfg.write_text(
+            json.dumps(
+                {
+                    "output_dir": str(tmp_path / "out"),
+                    "web": {
+                        "base_url": f"http://127.0.0.1:{app.server_port}",
+                        "viewport": {"width": 320, "height": 240},
+                        "headless": True,
+                        "pages": [{"name": "missing", "path": "/anchors#nope"}],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        config.load_config(cfg)
+
+        assert WebPagesCLI(config.settings.web).run() == 0
+
+        with Image.open(tmp_path / "out" / "pages" / "missing.png") as image:
+            assert image.size == (320, 240)
+    finally:
+        stop_servers(app, other, threads)
+
+
 def test_web_pages_cli_writes_mobile_screenshots_separately(tmp_path):
     require_edge()
     app, other, threads, _requests = start_servers()

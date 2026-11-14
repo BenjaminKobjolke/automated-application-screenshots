@@ -12,6 +12,7 @@ from .app_logger import AppLogger
 from .demo_common import _clear_stale_stills
 from .web_browser import WebBrowser
 from .web_config import WebDevice, WebSettings
+from .web_fragment import scroll_to_fragment
 
 
 class WebPagesCLI:
@@ -71,6 +72,11 @@ class WebPagesCLI:
                                     AppLogger.warning(
                                         f"Page '{target.name}' redirected to {page.url}."
                                     )
+                                fragment = urlsplit(requested).fragment
+                                if fragment and not scroll_to_fragment(page, fragment):
+                                    AppLogger.warning(
+                                        f"Page '{target.name}' has no element for #{fragment}."
+                                    )
                                 still = output_dir / f"{target.name}.png"
                                 page.screenshot(
                                     path=str(still), full_page=self._full_page
@@ -91,5 +97,7 @@ class WebPagesCLI:
 def _page_url(base_url: str, path: str) -> str:
     """Join an application-relative path while retaining the base subfolder."""
     base = urlsplit(base_url)
-    combined_path = f"{base.path.rstrip('/')}/{path.lstrip('/')}"
-    return urlunsplit((base.scheme, base.netloc, combined_path, base.query, ""))
+    target = urlsplit(path)
+    configured_path = path.split("#", maxsplit=1)[0]
+    combined_path = f"{base.path.rstrip('/')}/{configured_path.lstrip('/')}"
+    return urlunsplit((base.scheme, base.netloc, combined_path, base.query, target.fragment))
