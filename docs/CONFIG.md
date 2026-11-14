@@ -130,6 +130,13 @@ Set this at the top level to make it the default for every demo, or override it
 per demo. See the [`demos` setting](#demos-array) for its effect on stills and
 video frames.
 
+### `min_capture_size` (object, default none, demo mode, launch only)
+
+Set a saved-image size floor with `{"width": 1280, "height": 768}`. It can be
+set at the top level for every demo, overridden per demo, or set to `null` on a
+demo to disable an inherited default. See the [`demos` setting](#demos-array)
+for how it is checked.
+
 ### `screenshot_filename` (string, language mode)
 
 Filename of the screenshot saved inside each language subfolder, e.g. `"screenshot.png"`.
@@ -198,6 +205,7 @@ One entry per recordable demo:
 - `steps` (array of objects, network mode, optional) — demo steps sent to the app verbatim instead of a demo registered in the app: `{"type": "tap", "key": "settings_button"}`, `{"type": "type_text", "text": "{price}", "char_delay_ms": 60}`, `{"type": "pause", "seconds": 1}`, `{"type": "screenshot", "name": "settings"}`, `{"type": "custom", "name": "back"}`. Each entry needs a string `type`.
 - `width` / `height` (integers, optional) — window size the app must adopt. Recordings contain physical pixels: on a 150 % scaled display, 640×420 records as 960×630. The tool moves the window into the monitor's work area before recording, so the taskbar never appears in the capture — unless the window (in physical pixels) is larger than the work area itself; then the tool logs a warning and the fix is a smaller `width`/`height`.
 - `scale_to_window_size` (boolean, default `false`, launch mode) — may be set at the top level as the default for every demo and overridden per demo. When on, every still (uploaded by the app, captured by the tool, or taken from the recording) and every video frame before GIF/MP4 export is shrunk, keeping its aspect ratio, to fit inside `width` × `height` after `crop`; it never upscales and requires both dimensions. Network and web demos ignore it. For example, on a 200 % display a 1920×1080 window records as 3840×2160; this setting writes 1920×1080 images instead.
+- `min_capture_size` (object, launch mode) — minimum saved size as positive integer `width` and `height`, for example `{"width": 1280, "height": 768}`. A top-level value defaults every demo; a demo can override it or set `null` to disable it. The tool checks every saved still and exported video frame after `crop` and `scale_to_window_size`, in physical pixels like the saved image (on a 150 % display, a 1280×768 window saves as 1920×1152). A short capture is kept for diagnosis, logged with its actual and required dimensions, and makes the demo fail; the tool does not resize or upscale it. The minimum cannot exceed a scaled output size and is rejected in network and web configs. Small demo variants leave it unset.
 - `app_settings` (object, optional) — opaque app-specific settings. The tool writes them to a temp JSON file and passes it as a single `--automation-demo-settings <path>` (deleted after the run). The key dialect is the app's own (FastCalculator: QSettings keys). Anything the app reads **at startup** can go here — e.g. a full color theme is just the set of keys the app loads on launch, so a themed demo is fully reproducible from the config, no runtime commands needed.
 - `crop` (object, optional) — pixels removed from each captured frame: `{"top", "right", "bottom", "left"}` (any subset, default 0). The tool already captures the window's real visible bounds (`DwmGetWindowAttribute` extended frame bounds) clamped to the monitor work area, so the invisible resize border and the taskbar never appear; use `crop` only for residual trimming (e.g. a rounded-corner pixel or a themed 1px edge). Applied in physical pixels, identically to every frame. MP4 export pads an odd resulting side by 1px (x264 needs even dimensions).
 - `group` (string, optional) — which compose step this demo feeds, e.g. `"tour"` or `"feature"`. A compose step with the same `group` picks up every demo in it, in `id` order. This replaces matching on a name prefix, which no config could state and every post-processing script had to re-implement.
@@ -324,6 +332,8 @@ To record the **same** demo at more than one size or with different display
 settings, add multiple `demos[]` entries that share the same `id` (the app-side
 script) but have distinct `name`s and their own `width`/`height`/`app_settings`.
 `--demo all` records them all; each writes to its own `<name>/` folder.
+Set `min_capture_size` only on variants that need a size floor; intentionally
+small variants can leave it unset.
 
 ```json
 "demos": [
