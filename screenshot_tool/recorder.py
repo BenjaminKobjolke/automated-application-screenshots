@@ -3,11 +3,13 @@
 Stills requested via ``request_still`` are saved from the next captured frame,
 or from an optional target window captured at that frame tick. Uploaded stills
 bypass desktop capture, while single-capture stills capture once without starting
-the thread. Stills honour the configured crop and maximum output size.
+the thread. Stills honour the configured crop, maximum output size and optional
+minimum saved-image size.
 """
 
 import threading
 import time
+from io import BytesIO
 from pathlib import Path
 
 from PIL import Image
@@ -15,7 +17,7 @@ from PIL import Image
 from .app_logger import AppLogger
 from .capture import WindowCapture
 from .demo_common import save_uploaded_still
-from .image_fit import fit_png_within, fit_within
+from .image_fit import fit_png_within, fit_within, size_shortfall
 
 _FRAME_WARN_THRESHOLD = 1000
 
@@ -30,6 +32,7 @@ class Recorder(threading.Thread):
         stills_dir: Path,
         crop: tuple[int, int, int, int] = (0, 0, 0, 0),
         max_size: tuple[int, int] | None = None,
+        min_size: tuple[int, int] | None = None,
     ) -> None:
         super().__init__(daemon=True)
         self.hwnd = hwnd
@@ -37,8 +40,10 @@ class Recorder(threading.Thread):
         self.stills_dir = stills_dir
         self.crop = crop  # (top, right, bottom, left) px removed from each frame
         self.max_size = max_size
+        self.min_size = min_size
         self.frames: list[tuple[float, Image.Image]] = []
         self.saved_stills: list[str] = []
+        self.size_errors: list[str] = []
         self._pending_stills: list[tuple[str, int | None]] = []
         self._lock = threading.Lock()
         self._stop = threading.Event()
@@ -60,6 +65,14 @@ class Recorder(threading.Thread):
                 )
         save_uploaded_still(self.stills_dir, name, png)
         self.saved_stills.append(name)
+        if self.min_size is not None:
+            try:
+                with Image.open(BytesIO(png)) as image:
+                    self._check_size(name, image.size)
+            except (OSError, ValueError) as error:
+                message = f"Could not verify size of still '{name}': {error}"
+                AppLogger.error(message)
+                self.size_errors.append(message)
 
     def capture_still(self, name: str, hwnd: int | None = None) -> bool:
         """Capture and save one window still without starting the recorder."""
@@ -69,7 +82,7 @@ class Recorder(threading.Thread):
             WindowCapture.save_screenshot(image, self.stills_dir / f"{name}.png")
             self.saved_stills.append(name)
             AppLogger.info(f"Saved still '{name}'")
-            return True
+            return self._check_size(name, image.size)
         except Exception as e:
             AppLogger.error(f"Still capture failed for '{name}': {e}")
             return False
@@ -121,6 +134,17 @@ class Recorder(threading.Thread):
         """Shrink a still to the configured limit when one is set."""
         return fit_within(image, self.max_size) if self.max_size is not None else image
 
+    def _check_size(self, name: str, size: tuple[int, int]) -> bool:
+        """Log and remember a saved still that misses the configured size floor."""
+        if self.min_size is None:
+            return True
+        error = size_shortfall(f"Still '{name}'", size, self.min_size)
+        if error is None:
+            return True
+        AppLogger.error(error)
+        self.size_errors.append(error)
+        return False
+
     def _save_pending_stills(self, image: Image.Image) -> None:
         with self._lock:
             pending, self._pending_stills = self._pending_stills, []
@@ -133,6 +157,8 @@ class Recorder(threading.Thread):
                 except Exception as e:
                     AppLogger.error(f"Still capture failed for '{name}' (hwnd {hwnd}): {e}")
                     continue
-            WindowCapture.save_screenshot(self._fit(still), path)
+            fitted = self._fit(still)
+            WindowCapture.save_screenshot(fitted, path)
             self.saved_stills.append(name)
             AppLogger.info(f"Saved still '{name}'")
+            self._check_size(name, fitted.size)

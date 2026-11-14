@@ -90,6 +90,8 @@ class DemoSpec:
     height: int | None = None
     # Launch mode: shrink stills and frames to fit width x height.
     scale_to_window_size: bool = False
+    # Launch mode: fail when a saved capture is smaller than width x height.
+    min_capture_size: tuple[int, int] | None = None
     # Opaque app-specific settings, written to a JSON file the app receives
     # via --automation-demo-settings
     app_settings: tuple[tuple[str, str], ...] = ()

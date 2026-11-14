@@ -126,6 +126,7 @@ class DemoCLI:
                 stills_dir=out_dir,
                 crop=demo.crop,
                 max_size=demo.max_output_size,
+                min_size=demo.min_capture_size,
             )
             if demo.wants_video:
                 recorder.start()
@@ -137,9 +138,11 @@ class DemoCLI:
             if demo.wants_video:
                 recorder.join(timeout=5)
             # Export even after an abnormal end - partial recordings help debugging
-            desktop_demo._export(demo, recorder, out_dir)
+            exported_ok = desktop_demo._export(demo, recorder, out_dir)
             return (
                 ok
+                and exported_ok
+                and not recorder.size_errors
                 and (bool(recorder.frames) or not demo.wants_video)
                 and _run_verify(demo, language)
             )

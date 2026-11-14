@@ -15,6 +15,7 @@ from .config_models import (
 
 _VALID_FORMATS = ("gif", "mp4", "png")
 _SCALE_KEY = "scale_to_window_size"
+_MIN_SIZE_KEY = "min_capture_size"
 _WINDOW_KEYS = ["process_name", "title_substring"]
 _LANGUAGE_KEYS = ["dropdown_relative_pos", "screenshot_filename", "delay_after_change", "languages"]
 
@@ -92,7 +93,28 @@ def _parse_scale_flag(config_path: Path, value: object, where: str) -> bool:
     return value
 
 
-def _parse_demo(config_path: Path, data: dict, scale_default: bool = False) -> DemoSpec:
+def _parse_min_size(
+    config_path: Path, value: object, where: str
+) -> tuple[int, int] | None:
+    """Validate an optional minimum saved-image size."""
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        _fail(config_path, f"{where} {_MIN_SIZE_KEY} must be an object or null")
+    width, height = value.get("width"), value.get("height")
+    valid_width = isinstance(width, int) and not isinstance(width, bool) and width > 0
+    valid_height = isinstance(height, int) and not isinstance(height, bool) and height > 0
+    if not valid_width or not valid_height:
+        _fail(config_path, f"{where} {_MIN_SIZE_KEY} needs positive integer width and height")
+    return width, height
+
+
+def _parse_demo(
+    config_path: Path,
+    data: dict,
+    scale_default: bool = False,
+    min_size_default: tuple[int, int] | None = None,
+) -> DemoSpec:
     if not isinstance(data.get("id"), int):
         _fail(config_path, "each demo needs an integer 'id'")
     if not isinstance(data.get("name"), str) or not data["name"]:
@@ -138,6 +160,11 @@ def _parse_demo(config_path: Path, data: dict, scale_default: bool = False) -> D
         scale_to_window_size=_parse_scale_flag(
             config_path, data.get(_SCALE_KEY, scale_default), f"demo '{data['name']}'"
         ),
+        min_capture_size=(
+            _parse_min_size(config_path, data[_MIN_SIZE_KEY], f"demo '{data['name']}'")
+            if _MIN_SIZE_KEY in data
+            else min_size_default
+        ),
         app_settings=tuple((str(k), str(v)) for k, v in raw_settings.items()),
         languages=tuple(raw_languages),
         crop=crop,
@@ -173,8 +200,16 @@ def _parse_demo_section(
             "'demos' requires exactly one of a 'launch', 'network' or 'web' section",
         )
     scale_default = _parse_scale_flag(config_path, data.get(_SCALE_KEY, False), "top-level")
-    demos = tuple(_parse_demo(config_path, d, scale_default) for d in data["demos"])
+    min_size_default = _parse_min_size(
+        config_path, data.get(_MIN_SIZE_KEY), "top-level"
+    )
+    demos = tuple(
+        _parse_demo(config_path, demo, scale_default, min_size_default)
+        for demo in data["demos"]
+    )
     if modes[0] == "web":
+        if any(demo.min_capture_size is not None for demo in demos):
+            _fail(config_path, f"{_MIN_SIZE_KEY} is only supported for launch demos")
         for demo in demos:
             if not isinstance(demo.path, str) or not demo.path.startswith("/"):
                 _fail(config_path, f"demo '{demo.name}' path must start with '/'")
@@ -182,6 +217,8 @@ def _parse_demo_section(
                 _fail(config_path, f"web demo '{demo.name}' must set both width and height")
         return None, None, demos
     if "network" in data:
+        if any(demo.min_capture_size is not None for demo in demos):
+            _fail(config_path, f"{_MIN_SIZE_KEY} is only supported for launch demos")
         return None, _parse_network(config_path, data["network"]), demos
     launch = _parse_launch(config_path, data["launch"])
 
@@ -195,6 +232,23 @@ def _parse_demo_section(
             config_path,
             f"{_SCALE_KEY} needs 'width' and 'height' on demo(s): "
             f"{', '.join(missing_scale_size)}",
+        )
+
+    oversized_minimum = [
+        demo.name
+        for demo in demos
+        if demo.min_capture_size is not None
+        and demo.max_output_size is not None
+        and any(
+            minimum > output
+            for minimum, output in zip(demo.min_capture_size, demo.max_output_size, strict=True)
+        )
+    ]
+    if oversized_minimum:
+        _fail(
+            config_path,
+            f"{_MIN_SIZE_KEY} cannot exceed scaled output size for demo(s): "
+            f"{', '.join(oversized_minimum)}",
         )
 
     # A {width}/{height} placeholder in the command needs a size on every demo

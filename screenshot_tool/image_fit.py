@@ -1,8 +1,21 @@
-"""Shrink images to fit within a configured output size."""
+"""Fit images to configured bounds and validate their saved dimensions."""
 
 from io import BytesIO
 
 from PIL import Image, ImageOps
+
+
+def size_shortfall(label: str, size: tuple[int, int], minimum: tuple[int, int]) -> str | None:
+    """Describe when an image is smaller than either required dimension."""
+    width, height = size
+    min_width, min_height = minimum
+    if width >= min_width and height >= min_height:
+        return None
+    return (
+        f"{label} is {width}x{height}, below the required minimum "
+        f"{min_width}x{min_height} (window or monitor work area too small, "
+        "or the app ignored width/height)"
+    )
 
 
 def fit_within(image: Image.Image, size: tuple[int, int]) -> Image.Image:

@@ -11,7 +11,7 @@ from .config import DemoSpec
 from .demo_common import ACCEPT_TIMEOUT_S, DEMO_CAP_S, EVENT_TIMEOUT_S
 from .demo_server import DemoServer
 from .exporter import export_gif, export_mp4
-from .image_fit import fit_within
+from .image_fit import fit_within, size_shortfall
 from .recorder import Recorder
 from .window_finder import WindowFinder
 
@@ -98,7 +98,7 @@ def _event_loop(server: DemoServer, proc: subprocess.Popen, recorder: Recorder) 
             return True
 
 
-def _export(demo: DemoSpec, recorder: Recorder, out_dir: Path) -> None:
+def _export(demo: DemoSpec, recorder: Recorder, out_dir: Path) -> bool:
     if not recorder.frames and demo.wants_video:
         AppLogger.error("No frames captured; nothing to export.")
     if recorder.frames:
@@ -113,8 +113,19 @@ def _export(demo: DemoSpec, recorder: Recorder, out_dir: Path) -> None:
         if "mp4" in demo.formats:
             export_mp4(images, demo.fps, out_dir / "demo.mp4")
             AppLogger.info(f"  {out_dir / 'demo.mp4'}")
+        if demo.min_capture_size is not None:
+            for image in images:
+                error = size_shortfall(
+                    f"Video frame for demo '{demo.name}'",
+                    image.size,
+                    demo.min_capture_size,
+                )
+                if error is not None:
+                    AppLogger.error(error)
+                    return False
     for name in recorder.saved_stills:
         AppLogger.info(f"  {out_dir / f'{name}.png'}")
+    return True
 
 
 def _shutdown(proc: subprocess.Popen) -> None:
