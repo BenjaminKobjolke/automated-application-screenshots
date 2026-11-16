@@ -3,12 +3,14 @@
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import Any, Literal, NoReturn, get_args
 from urllib.parse import urlsplit, urlunsplit
 
 DEFAULT_VIEWPORT = (1280, 800)
 DEFAULT_MOBILE_VIEWPORT = (390, 844)
 DEFAULT_CHANNEL = "msedge"
+PageWaitUntil = Literal["commit", "domcontentloaded", "load", "networkidle"]
+DEFAULT_PAGE_WAIT_UNTIL: PageWaitUntil = "networkidle"
 
 
 class WebDevice(Enum):
@@ -32,6 +34,7 @@ class WebPage:
 
     name: str
     path: str
+    wait_until: PageWaitUntil = DEFAULT_PAGE_WAIT_UNTIL
 
 
 @dataclass(frozen=True)
@@ -109,16 +112,25 @@ def _parse_pages(config_path: Path, raw: Any) -> tuple[WebPage, ...]:
     pages: list[WebPage] = []
     names: set[str] = set()
     for index, item in enumerate(raw):
-        page = _object(config_path, item, f"web.pages[{index}]", {"name", "path"})
+        page = _object(
+            config_path, item, f"web.pages[{index}]", {"name", "path", "wait_until"}
+        )
         name, path = page.get("name"), page.get("path")
+        wait_until = page.get("wait_until", DEFAULT_PAGE_WAIT_UNTIL)
         if not isinstance(name, str) or not name.strip():
             _fail(config_path, f"web.pages[{index}].name must be a non-empty string")
         if name in names:
             _fail(config_path, "web.pages names must be unique")
         if not isinstance(path, str) or not path.startswith("/"):
             _fail(config_path, f"web.pages[{index}].path must start with '/'")
+        if wait_until not in get_args(PageWaitUntil):
+            allowed = ", ".join(get_args(PageWaitUntil))
+            _fail(
+                config_path,
+                f"web.pages[{index}].wait_until must be one of: {allowed}",
+            )
         names.add(name)
-        pages.append(WebPage(name=name, path=path))
+        pages.append(WebPage(name=name, path=path, wait_until=wait_until))
     return tuple(pages)
 
 

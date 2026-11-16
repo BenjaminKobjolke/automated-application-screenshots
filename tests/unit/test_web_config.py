@@ -58,6 +58,48 @@ def test_web_config_parses_pages_language_and_login_header(tmp_path):
     assert "secret-value" not in repr(settings)
 
 
+def test_web_page_wait_until_defaults_to_networkidle(tmp_path):
+    settings = parse_web(
+        tmp_path / "app.json",
+        {
+            "base_url": "https://example.test",
+            "pages": [{"name": "overview", "path": "/admin/overview"}],
+        },
+    )
+
+    assert settings.pages[0].wait_until == "networkidle"
+
+
+def test_web_page_wait_until_accepts_domcontentloaded(tmp_path):
+    settings = parse_web(
+        tmp_path / "app.json",
+        {
+            "base_url": "https://example.test",
+            "pages": [
+                {"name": "video", "path": "/video.mp4", "wait_until": "domcontentloaded"}
+            ],
+        },
+    )
+
+    assert settings.pages[0].wait_until == "domcontentloaded"
+
+
+@pytest.mark.parametrize("wait_until", ["idle", 5])
+def test_web_page_wait_until_rejects_values_outside_playwright_options(tmp_path, wait_until):
+    with pytest.raises(SystemExit) as error:
+        parse_web(
+            tmp_path / "app.json",
+            {
+                "base_url": "https://example.test",
+                "pages": [{"name": "video", "path": "/video.mp4", "wait_until": wait_until}],
+            },
+        )
+
+    message = str(error.value)
+    assert "web.pages[0].wait_until" in message
+    assert "commit, domcontentloaded, load, networkidle" in message
+
+
 @pytest.mark.parametrize("data", [{"base_url": "ftp://example.test"}, {"base_url": "https:///missing-host"}])
 def test_web_base_url_requires_http_scheme_and_host(tmp_path, data):
     with pytest.raises(SystemExit, match=r"web\.base_url"):

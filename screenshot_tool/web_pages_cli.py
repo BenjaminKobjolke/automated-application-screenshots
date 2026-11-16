@@ -63,7 +63,7 @@ class WebPagesCLI:
                         for target in self._web.pages:
                             requested = _page_url(self._web.base_url, target.path)
                             try:
-                                response = page.goto(requested, wait_until="networkidle")
+                                response = page.goto(requested, wait_until=target.wait_until)
                                 if response is not None and response.status >= 400:
                                     AppLogger.warning(
                                         f"Page '{target.name}' returned HTTP {response.status}."

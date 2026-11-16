@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import TypeAlias
 from urllib.parse import parse_qs, urlsplit
@@ -42,7 +43,14 @@ def start_servers(
                 return
             path = urlsplit(self.path).path
             params = parse_qs(urlsplit(self.path).query)
+            if path == "/hang":
+                time.sleep(40)
+                self.send_response(200)
+                self.end_headers()
+                return
             script = ""
+            if path == "/busy":
+                script = "fetch('/hang').catch(() => {});"
             if "automation-demo" in params:
                 script = f"""
                 const params = new URLSearchParams(window.location.search);
