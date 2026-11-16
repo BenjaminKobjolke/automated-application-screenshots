@@ -12,6 +12,8 @@ uv run playwright install chromium
 
 Runs are headless by default. Set `web.headless` to `false` to see the browser. For a local development site using a self-signed certificate, set `web.ignore_https_errors` to `true`.
 
+Set the optional `web.color_scheme` to `"light"` or `"dark"` to emulate that `prefers-color-scheme` preference in the browser context. It is unset by default, preserving the browser's current behavior.
+
 ## AX Suite example
 
 The public repository includes [`config/ax-suite.example.json`](../config/ax-suite.example.json). Copy it to `config/ax-suite.local.json`, then put a viewer account's API key in `web.login_header.value`. Local config files matching `config/*.local.json` are ignored by Git. Keep the key in that file; the tool does not include it in logs or settings representations. The browser adds the header only to requests for the configured application's exact origin.

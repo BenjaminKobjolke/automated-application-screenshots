@@ -92,6 +92,7 @@ The shipped [AX Suite example](../config/ax-suite.example.json) shows a complete
 - `headless` (default `true`): show the browser window when false.
 - `channel` (default `"msedge"`): Playwright browser channel. Use `"chromium"` to use Playwright's downloaded Chromium.
 - `ignore_https_errors` (default `false`): accept self-signed HTTPS certificates when true.
+- `color_scheme` (optional, `"light"` or `"dark"`): emulate the selected `prefers-color-scheme` value; unset by default.
 - `languages` (optional list): capture every configured page once per language, setting the browser locale and `Accept-Language`.
 - `pages` (optional list): named pages with unique non-empty `name` values and paths beginning with `/`. Each page may set `wait_until` to Playwright's `commit`, `domcontentloaded`, `load`, or `networkidle` navigation condition; it defaults to `networkidle` to preserve existing behavior. Use `domcontentloaded` for a page that opens a media file such as an MP4 directly. Set `wait_for_video_frame` (optional boolean, default `false`) to wait for a decoded video frame before capture. When the path has a `#t=` media-fragment start time, the wait seeks there if the browser has not; the page fails after 30 seconds if that frame is not shown. A plain run saves viewport PNGs below `pages/` (and a language subfolder when configured); mobile captures use a separate `pages/mobile/` folder.
 
