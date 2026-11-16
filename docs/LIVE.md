@@ -183,6 +183,18 @@ adb -s emulator-5554 shell am start -a android.intent.action.VIEW -d <url>
 
 The start call waits up to `4 × start_timeout + 60` seconds for Android startup, Flutter, and the app reset. Android startup does not show the Windows idle countdown. If startup fails, the session stops any emulator it started and leaves no live session running. Set `headless: true` for an agent that does not need an emulator window. `adb` and `emulator` are found on PATH or in the configured Android SDK folders, as described under [configuration](#configure-an-app).
 
+#### Reproducing a leftover app connection
+
+The Flutter connector makes one connection attempt loop that retries for up to three minutes after app launch. If the app already connected and the live tool later closes that connection, the connector does not reconnect. To reproduce a stale connection, first install and stop a live session, then launch the installed app again with no live listener. Its retry loop waits while the next `--live-start` opens the listener before building and installing the replacement app. The old app then connects to the new listener, and installation replaces that app; the live start must ignore the queued connection and accept the replacement app.
+
+On Windows, run the reusable trigger from the screenshot-tool repository root after confirming the emulator is available and port 8766 is free:
+
+```text
+uv run python tools/repro_stale_live_connection.py --app-dir "D:\GIT\BenjaminKobjolke\android\turbo-habits-app" --config tools/create_media/turbohabits.json --package de.xida.turbohabits --session "D:\GIT\BenjaminKobjolke\automated-application-screenshots\tickets\16899\work\fresh"
+```
+
+The JSON output records whether the old app connected before installation, the established connection line and its timestamp, when the app PID changed, whether live start succeeded, and whether `live.log` contains `Ignoring stale app connection`. A successful result requires all three checks: pre-install connection observed, successful live start, and stale-connection log. The helper leaves the new live session available for `--live-send` and `--live-stop`; use `--live-send` with `{"command":"read_text"}` to confirm the app responds, then stop the session when finished.
+
 Use `reset` to switch account settings in the same emulator session. The supplied object replaces the previous settings and remains active after reconnects:
 
 ```text
