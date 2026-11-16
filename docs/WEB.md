@@ -58,6 +58,8 @@ A configured page path may end in `#id` to capture a section directly. The scree
 
 For a page that opens an MP4 directly, set `wait_until` to `domcontentloaded` so capture does not wait for the video stream to become idle. Add `wait_for_video_frame` to wait until the video displays the frame at the requested time. If no decoded frame appears within 30 seconds, that page fails instead of saving a black image.
 
+The `#t=` media-fragment start accepts seconds, `npt:` seconds, and `mm:ss` or `hh:mm:ss`; if the requested time is not reached, capture fails instead of saving an earlier frame.
+
 ```json
 {
   "web": {

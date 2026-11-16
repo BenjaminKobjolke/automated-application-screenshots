@@ -79,7 +79,7 @@ class WebPagesCLI:
                                         f"Page '{target.name}' has no element for #{fragment}."
                                     )
                                 if target.wait_for_video_frame:
-                                    wait_for_video_frame(page)
+                                    wait_for_video_frame(page, fragment)
                                 still = output_dir / f"{target.name}.png"
                                 page.screenshot(
                                     path=str(still), full_page=self._full_page

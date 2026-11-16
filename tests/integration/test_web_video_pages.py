@@ -20,7 +20,11 @@ def test_web_pages_cli_waits_for_decoded_video_frame(tmp_path):
 
     run_ffmpeg(
         [
-            "-f", "lavfi", "-i", "color=c=red:s=160x120:d=12:r=10",
+            "-f", "lavfi", "-i", "color=c=black:s=160x120:d=2:r=10",
+            "-f", "lavfi", "-i", "color=c=red:s=160x120:d=6:r=10",
+            "-f", "lavfi", "-i", "color=c=blue:s=160x120:d=6:r=10",
+            "-filter_complex", "[0:v][1:v][2:v]concat=n=3:v=1:a=0[v]",
+            "-map", "[v]",
             "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
             str(video_path),
         ]
@@ -43,7 +47,7 @@ def test_web_pages_cli_waits_for_decoded_video_frame(tmp_path):
                                 "wait_until": "domcontentloaded",
                                 "wait_for_video_frame": True,
                             }
-                            for name, timestamp in (("early", 1), ("middle", 10))
+                            for name, timestamp in (("early", 3), ("middle", 10))
                         ],
                     },
                 }
@@ -54,10 +58,13 @@ def test_web_pages_cli_waits_for_decoded_video_frame(tmp_path):
 
         assert WebPagesCLI(config.settings.web).run() == 0
 
-        for name in ("early", "middle"):
+        for name, expected in (("early", "red"), ("middle", "blue")):
             with Image.open(tmp_path / "out" / "pages" / f"{name}.png") as image:
                 red, green, blue = image.getpixel((image.width // 2, image.height // 2))[:3]
-                assert red > 100 and red > green * 2 and red > blue * 2
+                if expected == "red":
+                    assert red > 100 and red > green * 2 and red > blue * 2
+                else:
+                    assert blue > 100 and blue > red * 2 and blue > green * 2
     finally:
         stop_server(server, thread)
 
