@@ -84,6 +84,48 @@ def test_web_page_wait_until_accepts_domcontentloaded(tmp_path):
     assert settings.pages[0].wait_until == "domcontentloaded"
 
 
+def test_web_page_wait_for_video_frame_defaults_to_false(tmp_path):
+    settings = parse_web(
+        tmp_path / "app.json",
+        {"base_url": "https://example.test", "pages": [{"name": "video", "path": "/video.mp4"}]},
+    )
+
+    assert settings.pages[0].wait_for_video_frame is False
+
+
+def test_web_page_wait_for_video_frame_accepts_true(tmp_path):
+    settings = parse_web(
+        tmp_path / "app.json",
+        {
+            "base_url": "https://example.test",
+            "pages": [
+                {
+                    "name": "video",
+                    "path": "/video.mp4",
+                    "wait_until": "domcontentloaded",
+                    "wait_for_video_frame": True,
+                }
+            ],
+        },
+    )
+
+    assert settings.pages[0].wait_for_video_frame is True
+
+
+@pytest.mark.parametrize("value", ["yes", 1])
+def test_web_page_wait_for_video_frame_rejects_non_boolean(tmp_path, value):
+    with pytest.raises(SystemExit) as error:
+        parse_web(
+            tmp_path / "app.json",
+            {
+                "base_url": "https://example.test",
+                "pages": [{"name": "video", "path": "/video.mp4", "wait_for_video_frame": value}],
+            },
+        )
+
+    assert "web.pages[0].wait_for_video_frame must be a boolean" in str(error.value)
+
+
 @pytest.mark.parametrize("wait_until", ["idle", 5])
 def test_web_page_wait_until_rejects_values_outside_playwright_options(tmp_path, wait_until):
     with pytest.raises(SystemExit) as error:

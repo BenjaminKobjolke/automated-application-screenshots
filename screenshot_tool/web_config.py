@@ -35,6 +35,7 @@ class WebPage:
     name: str
     path: str
     wait_until: PageWaitUntil = DEFAULT_PAGE_WAIT_UNTIL
+    wait_for_video_frame: bool = False
 
 
 @dataclass(frozen=True)
@@ -113,10 +114,14 @@ def _parse_pages(config_path: Path, raw: Any) -> tuple[WebPage, ...]:
     names: set[str] = set()
     for index, item in enumerate(raw):
         page = _object(
-            config_path, item, f"web.pages[{index}]", {"name", "path", "wait_until"}
+            config_path,
+            item,
+            f"web.pages[{index}]",
+            {"name", "path", "wait_until", "wait_for_video_frame"},
         )
         name, path = page.get("name"), page.get("path")
         wait_until = page.get("wait_until", DEFAULT_PAGE_WAIT_UNTIL)
+        wait_for_video_frame = page.get("wait_for_video_frame", False)
         if not isinstance(name, str) or not name.strip():
             _fail(config_path, f"web.pages[{index}].name must be a non-empty string")
         if name in names:
@@ -129,8 +134,20 @@ def _parse_pages(config_path: Path, raw: Any) -> tuple[WebPage, ...]:
                 config_path,
                 f"web.pages[{index}].wait_until must be one of: {allowed}",
             )
+        if not isinstance(wait_for_video_frame, bool):
+            _fail(
+                config_path,
+                f"web.pages[{index}].wait_for_video_frame must be a boolean",
+            )
         names.add(name)
-        pages.append(WebPage(name=name, path=path, wait_until=wait_until))
+        pages.append(
+            WebPage(
+                name=name,
+                path=path,
+                wait_until=wait_until,
+                wait_for_video_frame=wait_for_video_frame,
+            )
+        )
     return tuple(pages)
 
 

@@ -13,6 +13,7 @@ from .demo_common import _clear_stale_stills
 from .web_browser import WebBrowser
 from .web_config import WebDevice, WebSettings
 from .web_fragment import scroll_to_fragment
+from .web_video_frame import wait_for_video_frame
 
 
 class WebPagesCLI:
@@ -77,6 +78,8 @@ class WebPagesCLI:
                                     AppLogger.warning(
                                         f"Page '{target.name}' has no element for #{fragment}."
                                     )
+                                if target.wait_for_video_frame:
+                                    wait_for_video_frame(page)
                                 still = output_dir / f"{target.name}.png"
                                 page.screenshot(
                                     path=str(still), full_page=self._full_page

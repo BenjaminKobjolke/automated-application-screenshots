@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 import threading
 import time
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from functools import partial
+from http.server import BaseHTTPRequestHandler, SimpleHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import TypeAlias
 from urllib.parse import parse_qs, urlsplit
 
@@ -117,11 +119,30 @@ def start_servers(
 
 def stop_servers(app: _Server, other: _Server, threads: list[threading.Thread]) -> None:
     """Stop both local servers and join their serving threads."""
-    for server in (app, other):
-        server.shutdown()
-        server.server_close()
-    for thread in threads:
-        thread.join(timeout=3)
+    stop_server(app, threads[0])
+    stop_server(other, threads[1])
+
+
+def serve_directory(directory: Path) -> tuple[_Server, threading.Thread]:
+    """Serve static files from a directory on an ephemeral localhost port."""
+
+    class QuietFileHandler(SimpleHTTPRequestHandler):
+        def log_message(self, *_args):
+            pass
+
+    server = _Server(
+        ("127.0.0.1", 0), partial(QuietFileHandler, directory=str(directory))
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server, thread
+
+
+def stop_server(server: _Server, thread: threading.Thread) -> None:
+    """Stop one local server and join its serving thread."""
+    server.shutdown()
+    server.server_close()
+    thread.join(timeout=3)
 
 
 def require_edge() -> None:
