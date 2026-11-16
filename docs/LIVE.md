@@ -174,6 +174,8 @@ The session folder contains `live-session.json` with the loopback port, random p
 
 Configure `live.target` as `android_emulator`, or pass `--target android_emulator` with `--live-start`. Select a named AVD from `live.devices` with `--live-device NAME`. The requested AVD is reused when it is already running; otherwise the session starts it. `--live-stop` shuts down only an emulator started by that session. The start response's `device` field is the adb serial, for example `emulator-5554`; use it to open an app link:
 
+During a live session, the tool keeps the emulator screen on and unlocked, then restores the prior setting when it reuses an already-running emulator.
+
 ```text
 adb -s emulator-5554 shell am start -a android.intent.action.VIEW -d <url>
 ```

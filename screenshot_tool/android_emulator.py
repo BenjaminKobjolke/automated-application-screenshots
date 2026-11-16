@@ -20,6 +20,13 @@ _PROCESS_STOP_TIMEOUT = 3.0
 _SDK_ENV_VARS = ("ANDROID_HOME", "ANDROID_SDK_ROOT")
 _ADB = ("adb", "platform-tools")
 _EMULATOR = ("emulator", "emulator")
+_STAY_ON_SETTING = "stay_on_while_plugged_in"
+# Keyguard backgrounds the app and Android kills its sockets.
+_WAKE_COMMANDS = (
+    ("svc", "power", "stayon", "true"),
+    ("input", "keyevent", "KEYCODE_WAKEUP"),
+    ("wm", "dismiss-keyguard"),
+)
 
 
 def find_sdk_program(name: str, sdk_subdir: str, environ: Mapping[str, str]) -> str:
@@ -68,6 +75,8 @@ class AndroidEmulator:
         self._process: subprocess.Popen[str] | None = None
         self._serial: str | None = None
         self._owns_emulator = False
+        self._saved_stay_on: str | None = None
+        self._has_saved_stay_on = False
 
     def running_serials(self) -> list[str]:
         """Return online Android emulator serials reported by adb."""
@@ -115,12 +124,35 @@ class AndroidEmulator:
             self._serial = self._wait_for_serial(timeout, ignore=set(existing))
 
         self._wait_for_boot(self._serial, timeout)
+        self._keep_awake(self._serial)
         return self._serial
 
     def stop(self) -> None:
         """Shut down only an emulator launched by this driver."""
         if not self._owns_emulator:
+            if self._has_saved_stay_on and self._serial is not None:
+                restore_command = (
+                    ["settings", "put", "global", _STAY_ON_SETTING, self._saved_stay_on]
+                    if self._saved_stay_on is not None
+                    else ["settings", "delete", "global", _STAY_ON_SETTING]
+                )
+                self._runner.run(
+                    [
+                        self._adb_path(),
+                        "-s",
+                        self._serial,
+                        "shell",
+                        *restore_command,
+                    ],
+                    capture_output=True,
+                    check=False,
+                    text=True,
+                )
+            self._saved_stay_on = None
+            self._has_saved_stay_on = False
             return
+        self._saved_stay_on = None
+        self._has_saved_stay_on = False
         serial = self._serial
         if serial:
             self._runner.run(
@@ -211,6 +243,33 @@ class AndroidEmulator:
                 return
             time.sleep(min(_BOOT_POLL_SECONDS, max(0, deadline - time.monotonic())))
         raise TimeoutError(f"Android emulator {serial} did not finish booting before timeout")
+
+    def _keep_awake(self, serial: str) -> None:
+        result = self._runner.run(
+            [
+                self._adb_path(),
+                "-s",
+                serial,
+                "shell",
+                "settings",
+                "get",
+                "global",
+                _STAY_ON_SETTING,
+            ],
+            capture_output=True,
+            check=True,
+            text=True,
+        )
+        saved_stay_on = result.stdout.strip()
+        self._saved_stay_on = None if saved_stay_on == "null" else saved_stay_on
+        self._has_saved_stay_on = True
+        for command in _WAKE_COMMANDS:
+            self._runner.run(
+                [self._adb_path(), "-s", serial, "shell", *command],
+                capture_output=True,
+                check=True,
+                text=True,
+            )
 
     @staticmethod
     def _kill_process_tree(pid: int) -> None:
