@@ -56,14 +56,15 @@ Add `--full-page` to capture the whole scrollable page, including footers and ot
 
 A configured page path may end in `#id` to capture a section directly. The screenshot places the matching element at the top of the viewport, respecting the page's `scroll-margin-top` and `scroll-padding-top`, regardless of smooth scrolling or the previous page in the list. A missing target logs a warning and still saves the screenshot.
 
-For a page that opens an MP4 directly, set `wait_until` to `domcontentloaded` so capture does not wait for the video stream to become idle:
+For a page that opens an MP4 directly, set `wait_until` to `domcontentloaded` so capture does not wait for the video stream to become idle. Add `wait_for_video_frame` to wait until the video displays the frame at the requested time. If no decoded frame appears within 30 seconds, that page fails instead of saving a black image.
 
 ```json
 {
   "web": {
     "base_url": "https://example.test",
     "pages": [
-      {"name": "intro", "path": "/intro.mp4", "wait_until": "domcontentloaded"}
+      {"name": "intro", "path": "/intro.mp4", "wait_until": "domcontentloaded", "wait_for_video_frame": true},
+      {"name": "intro-at-10s", "path": "/intro.mp4#t=10", "wait_until": "domcontentloaded", "wait_for_video_frame": true}
     ]
   }
 }
