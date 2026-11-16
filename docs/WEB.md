@@ -56,6 +56,19 @@ Add `--full-page` to capture the whole scrollable page, including footers and ot
 
 A configured page path may end in `#id` to capture a section directly. The screenshot places the matching element at the top of the viewport, respecting the page's `scroll-margin-top` and `scroll-padding-top`, regardless of smooth scrolling or the previous page in the list. A missing target logs a warning and still saves the screenshot.
 
+For a page that opens an MP4 directly, set `wait_until` to `domcontentloaded` so capture does not wait for the video stream to become idle:
+
+```json
+{
+  "web": {
+    "base_url": "https://example.test",
+    "pages": [
+      {"name": "intro", "path": "/intro.mp4", "wait_until": "domcontentloaded"}
+    ]
+  }
+}
+```
+
 ```powershell
 uv run screenshot-tool --config config/ax-suite.local.json --device mobile --full-page
 ```
