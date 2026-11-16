@@ -104,3 +104,15 @@ def test_reset_before_start_raises_live_error(tmp_path):
 
     with pytest.raises(LiveError, match="not started"):
         session.reset(None)
+
+
+def test_start_wraps_unexpected_error_with_context(tmp_path):
+    session, _emulator = make_session(tmp_path, LiveTarget.WINDOWS)
+    session._started = False
+    session.daemon.start.side_effect = OSError("boom")
+
+    with pytest.raises(LiveError) as error:
+        session.start()
+
+    assert str(error.value).startswith("live start failed:")
+    assert "boom" in str(error.value)

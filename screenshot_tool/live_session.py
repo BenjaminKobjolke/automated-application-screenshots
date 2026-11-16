@@ -90,7 +90,7 @@ class LiveSession:
             self.stop()
             if isinstance(error, LiveError):
                 raise
-            raise LiveError(str(error), output) from error
+            raise LiveError(f"live start failed: {error}", output) from error
 
     def reload(self) -> ReloadResult:
         """Hot reload, falling back to hot restart and then a new Flutter run."""

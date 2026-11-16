@@ -2,11 +2,12 @@
 
 import time
 
+from .app_logger import AppLogger
 from .demo_protocol import DemoEvent
 from .demo_server import DemoServer
 from .flutter_daemon import FlutterDaemon
 from .live_config import LiveSettings
-from .live_types import LiveError
+from .live_types import LiveConnectionLost, LiveError
 
 _POLL_SECONDS = 0.1
 
@@ -20,10 +21,32 @@ class LiveAppLink:
 
     def accept_and_reset(self, settings: LiveSettings, timeout: float) -> None:
         """Accept the app connection and apply its configured settings."""
-        if not self.server.accept(timeout):
-            raise LiveError("Flutter app did not connect before timeout", self.daemon.output)
-        self.server.send({"command": "reset", "settings": settings.app_settings})
-        self.await_event("reset_done", timeout)
+        deadline = time.monotonic() + timeout
+        last_error: LiveConnectionLost | None = None
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not self.server.accept(remaining):
+                if last_error is None:
+                    raise LiveError("Flutter app did not connect before timeout", self.daemon.output)
+                raise LiveError(
+                    "app connection lost before 'reset_done', "
+                    f"no new connection before timeout: {last_error}",
+                    self.daemon.output,
+                ) from last_error
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise LiveError("Flutter app did not connect before timeout", self.daemon.output)
+            try:
+                self.server.send({"command": "reset", "settings": settings.app_settings})
+                self.await_event("reset_done", remaining)
+                return
+            except OSError as error:
+                last_error = LiveConnectionLost(
+                    f"app connection lost while sending 'reset': {error}", self.daemon.output
+                )
+            except LiveConnectionLost as error:
+                last_error = error
+            AppLogger.info(f"Ignoring stale app connection: {last_error}")
 
     def request(
         self, request: dict[str, object], expected: str, timeout: float
@@ -41,7 +64,10 @@ class LiveAppLink:
             try:
                 event = self.server.next_event(min(_POLL_SECONDS, deadline - time.monotonic()))
             except (ConnectionError, OSError) as error:
-                raise LiveError(str(error), self.daemon.output) from error
+                raise LiveConnectionLost(
+                    f"app connection lost while waiting for {expected!r}: {error}",
+                    self.daemon.output,
+                ) from error
             if event is None:
                 continue
             if event.event == "error":

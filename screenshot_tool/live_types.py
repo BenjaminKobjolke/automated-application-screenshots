@@ -16,6 +16,10 @@ class LiveError(RuntimeError):
         self.output = output
 
 
+class LiveConnectionLost(LiveError):
+    """The app connection closed before completing a live operation."""
+
+
 class ReloadOutcome(Enum):
     """The level of Flutter restart needed to apply the current source."""
 
