@@ -1,6 +1,7 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
 from playwright.sync_api import Browser
 
 from screenshot_tool.config import DemoSpec
@@ -57,6 +58,23 @@ def test_create_desktop_context_keeps_desktop_options() -> None:
     assert options["locale"] == "de"
     assert "is_mobile" not in options
     assert "user_agent" not in options
+    assert "color_scheme" not in options
+
+
+@pytest.mark.parametrize("device", [WebDevice.DESKTOP, WebDevice.MOBILE])
+def test_create_context_passes_configured_color_scheme(device: WebDevice) -> None:
+    browser = WebBrowser(
+        parse_web(
+            Path("config.json"),
+            {"base_url": "https://example.test", "color_scheme": "dark"},
+        )
+    )
+    browser._browser = MagicMock(spec=Browser)
+    browser._playwright = MagicMock(devices={"Pixel 7": {"user_agent": "UA"}})
+
+    browser.create_context(device=device)
+
+    assert browser._browser.new_context.call_args.kwargs["color_scheme"] == "dark"
 
 
 def test_create_mobile_context_uses_phone_profile() -> None:

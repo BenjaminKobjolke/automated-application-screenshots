@@ -1,63 +1,21 @@
 """Typed and validated settings for web screenshot targets."""
 
-from dataclasses import dataclass, field
-from enum import Enum
 from pathlib import Path
-from typing import Any, Literal, NoReturn, get_args
-from urllib.parse import urlsplit, urlunsplit
+from typing import Any, NoReturn, get_args
+from urllib.parse import urlsplit
 
-DEFAULT_VIEWPORT = (1280, 800)
-DEFAULT_MOBILE_VIEWPORT = (390, 844)
-DEFAULT_CHANNEL = "msedge"
-PageWaitUntil = Literal["commit", "domcontentloaded", "load", "networkidle"]
-DEFAULT_PAGE_WAIT_UNTIL: PageWaitUntil = "networkidle"
-
-
-class WebDevice(Enum):
-    """Device profile used to capture configured web pages."""
-
-    DESKTOP = "desktop"
-    MOBILE = "mobile"
-
-
-@dataclass(frozen=True)
-class LoginHeader:
-    """An origin-scoped login header; its value must never appear in logs."""
-
-    name: str
-    value: str = field(repr=False)
-
-
-@dataclass(frozen=True)
-class WebPage:
-    """A named page to capture without requiring an embedded connector."""
-
-    name: str
-    path: str
-    wait_until: PageWaitUntil = DEFAULT_PAGE_WAIT_UNTIL
-    wait_for_video_frame: bool = False
-
-
-@dataclass(frozen=True)
-class WebSettings:
-    """Browser and page settings for one web application."""
-
-    base_url: str
-    viewport: tuple[int, int] = DEFAULT_VIEWPORT
-    mobile_viewport: tuple[int, int] = DEFAULT_MOBILE_VIEWPORT
-    headless: bool = True
-    channel: str = DEFAULT_CHANNEL
-    ignore_https_errors: bool = False
-    languages: tuple[str, ...] = ()
-    pages: tuple[WebPage, ...] = ()
-    login_header: LoginHeader | None = None
-
-    @property
-    def origin(self) -> str:
-        """Return the scheme and authority used for origin checks."""
-        parsed = urlsplit(self.base_url)
-        return urlunsplit((parsed.scheme, parsed.netloc, "", "", ""))
-
+from screenshot_tool.web_models import (
+    DEFAULT_CHANNEL,
+    DEFAULT_MOBILE_VIEWPORT,
+    DEFAULT_PAGE_WAIT_UNTIL,
+    DEFAULT_VIEWPORT,
+    ColorScheme,
+    LoginHeader,
+    PageWaitUntil,
+    WebDevice,
+    WebPage,
+    WebSettings,
+)
 
 _WEB_KEYS = {
     "base_url",
@@ -69,6 +27,7 @@ _WEB_KEYS = {
     "ignore_https_errors",
     "languages",
     "pages",
+    "color_scheme",
 }
 
 
@@ -151,6 +110,14 @@ def _parse_pages(config_path: Path, raw: Any) -> tuple[WebPage, ...]:
     return tuple(pages)
 
 
+def _parse_color_scheme(config_path: Path, raw: Any) -> ColorScheme | None:
+    if raw is None:
+        return None
+    if raw not in get_args(ColorScheme):
+        _fail(config_path, "web.color_scheme must be one of: light, dark")
+    return raw
+
+
 def parse_web(config_path: Path, data: Any) -> WebSettings:
     """Validate web settings, including nested objects and origin URL."""
     values = _object(config_path, data, "web", _WEB_KEYS)
@@ -198,4 +165,5 @@ def parse_web(config_path: Path, data: Any) -> WebSettings:
         languages=tuple(languages),
         pages=_parse_pages(config_path, values.get("pages", [])),
         login_header=_parse_login_header(config_path, values.get("login_header")),
+        color_scheme=_parse_color_scheme(config_path, values.get("color_scheme")),
     )

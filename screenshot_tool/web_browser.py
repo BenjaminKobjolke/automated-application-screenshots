@@ -103,6 +103,8 @@ class WebBrowser:
             "viewport": {"width": width, "height": height},
             "ignore_https_errors": self._web.ignore_https_errors,
         }
+        if self._web.color_scheme is not None:
+            options["color_scheme"] = self._web.color_scheme
         if device is WebDevice.MOBILE:
             if self._playwright is None:
                 raise RuntimeError("WebBrowser must be entered before creating a context")
