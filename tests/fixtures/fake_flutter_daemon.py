@@ -175,9 +175,14 @@ def app_reader(connection: socket.socket) -> None:
             connection.sendall(json.dumps(event).encode() + b"\n")
 
 
-def connect_app(host: str, port: int) -> None:
+def loopback(host: str) -> str:
     if host == "10.0.2.2":
-        host = "127.0.0.1"  # The emulator uses this alias to reach the host loopback.
+        return "127.0.0.1"  # The emulator uses this alias to reach the host loopback.
+    return host
+
+
+def connect_app(host: str, port: int) -> None:
+    host = loopback(host)
     deadline = time.monotonic() + 15
     while time.monotonic() < deadline:
         try:
@@ -195,6 +200,10 @@ def run() -> None:
     host, port_text = host_arg.rsplit(":", 1)
     port = int(port_text)
     control = Path(os.environ["FLUTTER_FAKE_CONTROL"])
+    if os.environ.get("FLUTTER_FAKE_STALE_APP"):
+        # Simulate a waiting app that connects just before Flutter reports its start.
+        with socket.create_connection((loopback(host), port), timeout=1):
+            pass
     emit({"event": "app.started", "params": {"appId": "fake-app"}})
     connect_app(host, port)
     for line in sys.stdin:

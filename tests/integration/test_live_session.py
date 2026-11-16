@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import pytest
@@ -28,6 +29,24 @@ def test_start_screens_and_png_capture(live_session: LiveSession, tmp_path: Path
     image = tmp_path / "nested" / "home.png"
     live_session.shot(ShotRequest("home", image))
     assert image.read_bytes() == b"fake-png"
+
+
+def test_start_ignores_leftover_app_connection(
+    live_session: LiveSession,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+):
+    monkeypatch.setenv("FLUTTER_FAKE_STALE_APP", "1")
+    caplog.set_level(logging.INFO, logger="screenshot_tool")
+
+    live_session.start()
+
+    assert "Ignoring stale app connection" in caplog.text
+    assert live_session.screens() == (
+        ScreenInfo(name="home"),
+        ScreenInfo(name="habit_edit", sections=("additional_information",)),
+        ScreenInfo(name="todo_detail", record_id="todo id"),
+    )
 
 
 def test_shot_options_reach_app_and_save_png(live_session: LiveSession, tmp_path: Path):
