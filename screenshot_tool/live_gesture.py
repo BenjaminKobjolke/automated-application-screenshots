@@ -77,11 +77,12 @@ def parse_gesture_request(data: Mapping[str, object]) -> GestureRequest:
     duration_ms = None
     if _DURATION_MS in data:
         duration_value = data[_DURATION_MS]
-        if (
-            not isinstance(duration_value, int)
-            or isinstance(duration_value, bool)
-            or duration_value <= 0
-        ):
+        valid_duration = (
+            isinstance(duration_value, int)
+            and not isinstance(duration_value, bool)
+            and duration_value > 0
+        )
+        if not valid_duration:
             raise ValueError("duration_ms must be a positive integer")
         duration_ms = duration_value
 

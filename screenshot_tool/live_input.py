@@ -93,11 +93,12 @@ def parse_input_request(kind: InputKind, data: Mapping[str, object]) -> InputReq
                 raise ValueError("match must be exact or contains") from None
         if _INDEX in data:
             index_value = data[_INDEX]
-            if (
-                not isinstance(index_value, int)
-                or isinstance(index_value, bool)
-                or index_value < 0
-            ):
+            valid_index = (
+                isinstance(index_value, int)
+                and not isinstance(index_value, bool)
+                and index_value >= 0
+            )
+            if not valid_index:
                 raise ValueError("index must be a non-negative integer")
             index = index_value
 

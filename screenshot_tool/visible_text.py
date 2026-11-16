@@ -64,17 +64,16 @@ def parse_visible_text(value: object) -> tuple[VisibleTextEntry, ...]:
             raise ValueError("visible text text must be a string")
         if not isinstance(enabled, bool):
             raise ValueError("visible text enabled must be a boolean")
-        if (
-            not isinstance(bounds, list)
-            or len(bounds) != 4
-            or any(
-                not isinstance(coordinate, (int, float))
-                or isinstance(coordinate, bool)
-                or not math.isfinite(coordinate)
-                or not 0 <= coordinate <= 1
-                for coordinate in bounds
-            )
-        ):
+        if not isinstance(bounds, list) or len(bounds) != 4:
+            raise ValueError("visible text bounds must contain four fractions between 0 and 1")
+        valid_bounds = all(
+            isinstance(coordinate, (int, float))
+            and not isinstance(coordinate, bool)
+            and math.isfinite(coordinate)
+            and 0 <= coordinate <= 1
+            for coordinate in bounds
+        )
+        if not valid_bounds:
             raise ValueError("visible text bounds must contain four fractions between 0 and 1")
         left, top, right, bottom = bounds
         if left > right or top > bottom:

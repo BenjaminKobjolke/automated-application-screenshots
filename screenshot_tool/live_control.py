@@ -9,6 +9,7 @@ import os
 import socket
 import tempfile
 import threading
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -74,20 +75,16 @@ class SessionFile:
                 data["pid"],
                 data["reply_timeout"],
             )
-            if (
-                not isinstance(port, int)
-                or isinstance(port, bool)
-                or not 1 <= port <= 65535
-                or not isinstance(token, str)
-                or not token
-                or not isinstance(pid, int)
-                or isinstance(pid, bool)
-                or pid <= 0
-                or not isinstance(reply_timeout, (int, float))
-                or isinstance(reply_timeout, bool)
-                or not math.isfinite(reply_timeout)
-                or reply_timeout <= 0
-            ):
+            valid_port = isinstance(port, int) and not isinstance(port, bool) and 1 <= port <= 65535
+            valid_token = isinstance(token, str) and bool(token)
+            valid_pid = isinstance(pid, int) and not isinstance(pid, bool) and pid > 0
+            valid_timeout = (
+                isinstance(reply_timeout, (int, float))
+                and not isinstance(reply_timeout, bool)
+                and math.isfinite(reply_timeout)
+                and reply_timeout > 0
+            )
+            if not (valid_port and valid_token and valid_pid and valid_timeout):
                 return None
             return cls(port, token, pid, float(reply_timeout))
         except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError, ValueError):
@@ -96,10 +93,8 @@ class SessionFile:
     @staticmethod
     def remove(folder: str | Path) -> None:
         """Remove the session file if it exists."""
-        try:
+        with suppress(FileNotFoundError):
             (Path(folder) / _SESSION_FILE).unlink()
-        except FileNotFoundError:
-            pass
 
 
 class ControlServer:
