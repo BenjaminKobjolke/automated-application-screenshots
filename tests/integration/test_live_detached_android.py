@@ -194,5 +194,6 @@ def test_android_failed_start_cleans_up_owned_emulator(tmp_path, monkeypatch):
         and "-m" in process.info["cmdline"]
         and "screenshot_tool.live_detached" in process.info["cmdline"]
         and "--serve" in process.info["cmdline"]
+        and str(folder) in process.info["cmdline"]
         for process in psutil.process_iter(["cmdline"])
     )
