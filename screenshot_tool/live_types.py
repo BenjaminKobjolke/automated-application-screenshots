@@ -20,6 +20,10 @@ class LiveConnectionLost(LiveError):
     """The app connection closed before completing a live operation."""
 
 
+class LiveEventTimeout(LiveError):
+    """The app stayed connected but sent no expected event before the deadline."""
+
+
 class ReloadOutcome(Enum):
     """The level of Flutter restart needed to apply the current source."""
 

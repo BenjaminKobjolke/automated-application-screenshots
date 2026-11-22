@@ -11,7 +11,7 @@ from screenshot_tool.demo_server import DemoServer
 from screenshot_tool.flutter_daemon import FlutterDaemon
 from screenshot_tool.live_app_link import LiveAppLink
 from screenshot_tool.live_config import LiveSettings, LiveTarget
-from screenshot_tool.live_types import LiveConnectionLost, LiveError
+from screenshot_tool.live_types import LiveConnectionLost, LiveError, LiveEventTimeout
 
 
 def make_link(tmp_path: Path) -> tuple[LiveAppLink, MagicMock, MagicMock, LiveSettings]:
@@ -45,6 +45,69 @@ def test_accept_and_reset_skips_connection_lost_while_waiting(tmp_path):
     link.accept_and_reset(settings, 1.0)
 
     assert server.accept.call_count == 2
+
+
+def test_accept_and_reset_skips_silent_connection(tmp_path, monkeypatch):
+    import screenshot_tool.live_app_link as live_app_link
+
+    monkeypatch.setattr(live_app_link, "_RESET_REPLY_TIMEOUT", 0.2)
+    link, server, _daemon, settings = make_link(tmp_path)
+    server.accept.return_value = True
+    server.next_event.side_effect = lambda _timeout: (
+        DemoEvent(event="reset_done", demo=None, name=None, hwnd=None)
+        if server.accept.call_count >= 2
+        else None
+    )
+
+    started = time.monotonic()
+    link.accept_and_reset(settings, 5.0)
+    elapsed = time.monotonic() - started
+
+    assert server.accept.call_count == 2
+    assert elapsed < 2.0
+
+
+def test_accept_and_reset_reports_silent_connection_at_timeout(tmp_path, monkeypatch):
+    import screenshot_tool.live_app_link as live_app_link
+
+    monkeypatch.setattr(live_app_link, "_RESET_REPLY_TIMEOUT", 0.2)
+    link, server, _daemon, settings = make_link(tmp_path)
+    server.accept.side_effect = lambda timeout: _wait_after_first_accept(server, timeout)
+    server.next_event.return_value = None
+
+    with pytest.raises(LiveError) as error:
+        link.accept_and_reset(settings, 0.6)
+
+    assert "app connected but never answered reset" in str(error.value)
+    assert "accepted at" in str(error.value)
+    assert "reset sent at" in str(error.value)
+
+
+def test_await_event_timeout_raises_live_event_timeout(tmp_path):
+    link, server, _daemon, _settings = make_link(tmp_path)
+    server.next_event.return_value = None
+
+    with pytest.raises(
+        LiveEventTimeout, match="timed out waiting for app event 'reset_done'"
+    ) as error:
+        link.await_event("reset_done", 0.2)
+
+    assert isinstance(error.value, LiveError)
+
+
+def test_accept_and_reset_logs_accept_and_reset_times(tmp_path, monkeypatch):
+    import screenshot_tool.live_app_link as live_app_link
+
+    messages = []
+    monkeypatch.setattr(live_app_link.AppLogger, "info", messages.append)
+    link, server, _daemon, settings = make_link(tmp_path)
+    server.accept.return_value = True
+    server.next_event.return_value = DemoEvent(event="reset_done", demo=None, name=None, hwnd=None)
+
+    link.accept_and_reset(settings, 1.0)
+
+    assert any(message.startswith("App connection accepted at ") for message in messages)
+    assert any(message.startswith("Sent 'reset' at ") for message in messages)
 
 
 def test_accept_and_reset_reports_last_connection_error_at_timeout(tmp_path):

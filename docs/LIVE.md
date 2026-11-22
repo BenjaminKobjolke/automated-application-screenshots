@@ -135,7 +135,7 @@ The connector connects to `AUTOMATION_HOST` over TCP and handles one JSON comman
 | `{"command":"reset","settings":{}}` | `{"event":"reset_done"}` |
 
 The live `reset` command forwards this existing connector command and waits for `reset_done`.
-During startup, a connection that closes before replying to `reset_done` is treated as stale; the tool accepts another connection within the same `start_timeout`. If no app completes the reset before that deadline, the error includes the last connection failure.
+During startup, a connection that closes before replying to `reset_done`, or stays silent for 90 seconds (or the remaining `start_timeout` when shorter), is treated as stale; the tool accepts another connection within the same `start_timeout`. If no app completes the reset before that deadline, the error identifies an app that connected but never answered reset and includes the connection-accepted and reset-sent times. The live log records those times as `App connection accepted at …` and `Sent 'reset' at …`.
 
 The `section`, `record_id` and `language` fields on `navigate` and the `full` field on `screenshot` are optional. `list_screens` screen items may include a `sections` array of registered section keys and a `record_id` string describing the accepted id (for example, `todo id`). See the connector's `docs/LIVE_SCREENS.md` for registering record screens. Apps must expose a theme hook to support `set_theme`; when no hook is available they should send an `error` event such as `theme switching is not supported by this app`.
 
