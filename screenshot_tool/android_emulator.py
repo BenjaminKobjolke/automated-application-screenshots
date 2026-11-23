@@ -9,6 +9,7 @@ from typing import Any, Protocol
 
 from screenshot_tool import android_emulator_runtime as emulator_runtime
 from screenshot_tool.android_sdk import find_sdk_program
+from screenshot_tool.device_screen import DeviceScreen
 from screenshot_tool.emulator_health import (
     SLOW_PACKAGE_MANAGER_SECONDS,
     package_manager_seconds,
@@ -155,6 +156,12 @@ class AndroidEmulator:
         if self._serial is None:
             raise RuntimeError("emulator is not started")
         return EmulatorRotation(self._runner, self.adb_path(), self._serial)
+
+    def device_screen(self) -> DeviceScreen:
+        """Create a full-device screen controller for the selected emulator."""
+        if self._serial is None:
+            raise RuntimeError("emulator is not started")
+        return DeviceScreen(self._runner, self.adb_path(), self._serial)
 
     def avd_name(self, serial: str) -> str:
         """Return the AVD name associated with an emulator serial, if known."""

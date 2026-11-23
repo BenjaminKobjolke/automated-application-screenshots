@@ -44,6 +44,25 @@ def _adb(args: list[str]) -> int:
         return 0
     elif command == ["shell", "getprop", "sys.boot_completed"]:
         print("1")
+    elif command == ["shell", "dumpsys", "activity", "activities"]:
+        foreground_file = _state() / "foreground"
+        package = (
+            foreground_file.read_text(encoding="utf-8").strip()
+            if foreground_file.exists()
+            else "com.example.app"
+        )
+        print(f"topResumedActivity=ActivityRecord{{1 u0 {package}/.Main t1}}")
+    elif command == ["shell", "wm", "size"]:
+        print("Physical size: 1080x2400")
+    elif command == ["shell", "dumpsys", "display"]:
+        print("mOverrideDisplayInfo=DisplayInfo{rotation 0}")
+    elif command == ["exec-out", "screencap", "-p"]:
+        sys.stdout.buffer.write(b"\x89PNG\r\n\x1a\n" + b"device-screencap")
+    elif command == ["exec-out", "cat", "/sdcard/window_dump.xml"]:
+        print(
+            '<hierarchy><node text="USE THIS FOLDER" content-desc="" '
+            'bounds="[100,200][500,300]" /></hierarchy>'
+        )
     elif command == ["emu", "kill"]:
         _log("kill " + serial)
         (_running() / serial).unlink(missing_ok=True)

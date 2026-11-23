@@ -35,6 +35,10 @@ def app_reader(connection: socket.socket) -> None:
         for line in stream:
             command = json.loads(line)
             name = command.get("command")
+            command_log = os.environ.get("FLUTTER_FAKE_COMMANDS")
+            if command_log:
+                with Path(command_log).open("a", encoding="utf-8") as log:
+                    log.write(json.dumps(command) + "\n")
             if name == "reset":
                 reset_log = os.environ.get("FLUTTER_FAKE_RESETS")
                 if reset_log:
@@ -187,6 +191,7 @@ def connect_app(host: str, port: int) -> None:
     while time.monotonic() < deadline:
         try:
             connection = socket.create_connection((host, port), timeout=1)
+            connection.settimeout(None)
             threading.Thread(target=app_reader, args=(connection,), daemon=True).start()
             return
         except OSError:

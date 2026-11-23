@@ -172,6 +172,45 @@ def test_android_device_override_starts_requested_avd_and_stops_only_it(tmp_path
     assert (state / "running" / "emulator-5554").read_text() == "Other_AVD"
 
 
+def test_android_system_window_uses_device_capture_and_returns_to_app(tmp_path, monkeypatch):
+    state = install_fake_android(tmp_path, monkeypatch)
+    monkeypatch.setenv("FLUTTER_FAKE_CONTROL", str(tmp_path / "control"))
+    command_log = tmp_path / "flutter-commands.jsonl"
+    monkeypatch.setenv("FLUTTER_FAKE_COMMANDS", str(command_log))
+    config = _config(tmp_path)
+    folder = tmp_path / "session"
+    system_shot = tmp_path / "system.png"
+    app_shot = tmp_path / "app.png"
+
+    _start(config, folder)
+    try:
+        (state / "foreground").write_text("com.google.android.documentsui", encoding="utf-8")
+        assert _send(
+            folder,
+            {"command": "gesture", "kind": "tap", "at": [0.25, 0.24]},
+        )["ok"] is True
+        assert _send(folder, {"command": "tap_text", "text": "USE THIS FOLDER"})["ok"] is True
+        assert _send(folder, {"command": "shot", "out": str(system_shot)})["ok"] is True
+
+        assert system_shot.read_bytes() == b"\x89PNG\r\n\x1a\n" + b"device-screencap"
+        calls = (state / "calls.log").read_text(encoding="utf-8")
+        assert "shell input tap" in calls
+        flutter_commands = [
+            json.loads(line) for line in command_log.read_text(encoding="utf-8").splitlines()
+        ]
+        assert not any(command.get("command") == "screenshot" for command in flutter_commands)
+
+        (state / "foreground").write_text("com.example.app", encoding="utf-8")
+        assert _send(folder, {"command": "shot", "out": str(app_shot)})["ok"] is True
+        assert app_shot.read_bytes() == b"fake-png"
+        flutter_commands = [
+            json.loads(line) for line in command_log.read_text(encoding="utf-8").splitlines()
+        ]
+        assert any(command.get("command") == "screenshot" for command in flutter_commands)
+    finally:
+        _stop(folder)
+
+
 def test_android_failed_start_cleans_up_owned_emulator(tmp_path, monkeypatch):
     state = install_fake_android(tmp_path, monkeypatch)
     monkeypatch.setenv("FLUTTER_FAKE_CONTROL", str(tmp_path / "control"))

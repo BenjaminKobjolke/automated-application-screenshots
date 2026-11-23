@@ -6,12 +6,18 @@ from unittest.mock import MagicMock
 import pytest
 
 from screenshot_tool.android_emulator import AndroidEmulator
+from screenshot_tool.app_logger import AppLogger
 from screenshot_tool.daemon_protocol import DaemonResult
+from screenshot_tool.demo_protocol import DemoEvent
 from screenshot_tool.demo_server import DemoServer
+from screenshot_tool.device_screen import DeviceScreen
 from screenshot_tool.flutter_daemon import FlutterDaemon
 from screenshot_tool.live_app_link import LiveAppLink
 from screenshot_tool.live_config import LiveSettings, LiveTarget
+from screenshot_tool.live_gesture import GestureKind, GestureRequest
+from screenshot_tool.live_input import InputKind, InputRequest
 from screenshot_tool.live_session import LiveError, LiveSession, ShotOrientation, ShotRequest
+from screenshot_tool.live_system_window import SystemWindow
 
 
 def make_session(tmp_path: Path, target: LiveTarget = LiveTarget.ANDROID_EMULATOR):
@@ -116,3 +122,102 @@ def test_start_wraps_unexpected_error_with_context(tmp_path):
 
     assert str(error.value).startswith("live start failed:")
     assert "boom" in str(error.value)
+
+
+def test_system_window_gesture_skips_app_connector(tmp_path):
+    session, _emulator = make_session(tmp_path)
+    window = MagicMock(spec=SystemWindow)
+    window.in_front.return_value = True
+    session._system_window = window
+    request = GestureRequest(GestureKind.TAP, at=(0.25, 0.24))
+
+    session.gesture(request)
+
+    window.gesture.assert_called_once_with(request)
+    session.app_link.request.assert_not_called()
+
+
+def test_system_window_tap_text_skips_app_connector(tmp_path):
+    session, _emulator = make_session(tmp_path)
+    window = MagicMock(spec=SystemWindow)
+    window.in_front.return_value = True
+    event = DemoEvent(event="text_tapped", demo=None, name=None, hwnd=None)
+    window.tap_text.return_value = event
+    session._system_window = window
+    request = InputRequest(InputKind.TAP_TEXT, text="Allow")
+
+    assert session.send_input(request) == event
+
+    window.tap_text.assert_called_once_with(request)
+    session.app_link.request.assert_not_called()
+
+
+def test_other_system_window_input_is_rejected_without_app_request(tmp_path):
+    session, _emulator = make_session(tmp_path)
+    window = MagicMock(spec=SystemWindow)
+    window.in_front.return_value = True
+    session._system_window = window
+
+    with pytest.raises(LiveError, match="while a system window is in front"):
+        session.send_input(InputRequest(InputKind.READ_TEXT))
+
+    session.app_link.request.assert_not_called()
+
+
+def test_system_window_shot_saves_device_png_without_app_request(tmp_path):
+    session, emulator = make_session(tmp_path)
+    window = MagicMock(spec=SystemWindow)
+    window.in_front.return_value = True
+    window.shot.return_value = tmp_path / "device.png"
+    session._system_window = window
+    request = ShotRequest(None, tmp_path / "device.png", orientation=ShotOrientation.LANDSCAPE)
+
+    assert session.shot(request) == tmp_path / "device.png"
+
+    window.shot.assert_called_once_with(request)
+    session.app_link.request.assert_not_called()
+    emulator.rotation.return_value.locked.assert_called_once_with(True, 60.0)
+    emulator.rotation.return_value.locked.return_value.__enter__.assert_called_once()
+
+
+def test_android_start_tracks_app_package_after_connection(tmp_path):
+    session, emulator = make_session(tmp_path)
+    emulator.ensure.return_value = "emulator-5554"
+    device_screen = MagicMock(spec=DeviceScreen)
+    device_screen.foreground_package.return_value = "com.example.app"
+    emulator.device_screen.return_value = device_screen
+    session._started = False
+    session.daemon.wait_for_started.return_value = True
+
+    session.start()
+
+    emulator.device_screen.assert_called_once_with()
+    device_screen.foreground_package.assert_called_once_with()
+    assert isinstance(session._system_window, SystemWindow)
+    assert session._system_window._app_package == "com.example.app"
+
+
+def test_android_start_keeps_app_routing_when_package_cannot_be_read(tmp_path, monkeypatch):
+    session, emulator = make_session(tmp_path)
+    emulator.ensure.return_value = "emulator-5554"
+    device_screen = MagicMock(spec=DeviceScreen)
+    device_screen.foreground_package.side_effect = OSError("adb unavailable")
+    emulator.device_screen.return_value = device_screen
+    session._started = False
+    session.daemon.wait_for_started.return_value = True
+    warning = MagicMock()
+    monkeypatch.setattr(AppLogger, "warning", warning)
+
+    session.start()
+
+    assert session._system_window is None
+    assert warning.called
+
+
+def test_stop_clears_system_window_state(tmp_path):
+    session, _emulator = make_session(tmp_path)
+    session._system_window = MagicMock(spec=SystemWindow)
+
+    session.stop()
+
+    assert session._system_window is None

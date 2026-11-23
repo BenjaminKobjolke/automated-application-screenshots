@@ -113,6 +113,23 @@ A `shot` without `screen` captures the current app state without sending `naviga
 
 The same commands work with `windows` and `android_emulator` targets.
 
+#### System windows on Android emulators
+
+When an Android live session starts, it records the connected app's package. If another package
+comes to the foreground, a current-state `shot` captures the full device screen with `adb`
+instead of asking the hidden app for an image. During that time, `tap` and `drag` coordinates
+are fractions of the full device screen, and `tap_text` matches labels from Android's UI
+hierarchy by `text` or `content-desc`:
+
+```json
+{"command":"tap_text","text":"USE THIS FOLDER","match":"exact"}
+```
+
+`pinch`, gestures with `screen` or `section`, and shots with `screen`, `section`, or `theme` are
+unavailable while a system window is in front. Other app-only inputs such as `read_text`,
+`tap_key`, `type_text`, and `press_key` also return `ok:false` in that state. When the app
+returns to the foreground, gestures and screenshots use the app connector again.
+
 The connector connects to `AUTOMATION_HOST` over TCP and handles one JSON command at a time. The tool uses these live commands:
 
 | Tool sends | Connector replies |

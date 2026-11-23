@@ -138,3 +138,25 @@ def test_stop_leaves_reused_emulator_running():
 
     runner.run.assert_not_called()
     runner.Popen.assert_not_called()
+
+
+def test_device_screen_uses_selected_serial_and_adb_path(tmp_path: Path):
+    sdk = fake_sdk(tmp_path / "sdk")
+    runner = MagicMock(spec=subprocess)
+    emulator = AndroidEmulator(runner=runner, environ=env_with_sdk(sdk))
+    emulator._serial = "emulator-5554"
+
+    screen = emulator.device_screen()
+
+    assert screen._serial == "emulator-5554"
+    assert screen._adb == str(
+        sdk / "platform-tools" / ("adb.exe" if os.name == "nt" else "adb")
+    )
+    assert screen._runner is runner
+
+
+def test_device_screen_requires_a_started_emulator():
+    emulator = AndroidEmulator(runner=MagicMock(spec=subprocess))
+
+    with pytest.raises(RuntimeError, match="emulator is not started"):
+        emulator.device_screen()
