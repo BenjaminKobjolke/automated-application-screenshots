@@ -3,53 +3,22 @@
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
-import time
 from collections.abc import Mapping, Sequence
-from contextlib import suppress
-from pathlib import Path
 from typing import Any, Protocol
 
-import psutil
-
+from screenshot_tool import android_emulator_runtime as emulator_runtime
+from screenshot_tool.android_sdk import find_sdk_program
+from screenshot_tool.emulator_health import (
+    SLOW_PACKAGE_MANAGER_SECONDS,
+    package_manager_seconds,
+    restart_degraded,
+)
 from screenshot_tool.emulator_rotation import EmulatorRotation
 
-_BOOT_POLL_SECONDS = 1.0
-_PROCESS_STOP_TIMEOUT = 3.0
-_SDK_ENV_VARS = ("ANDROID_HOME", "ANDROID_SDK_ROOT")
 _ADB = ("adb", "platform-tools")
 _EMULATOR = ("emulator", "emulator")
 _STAY_ON_SETTING = "stay_on_while_plugged_in"
-# Keyguard backgrounds the app and Android kills its sockets.
-_WAKE_COMMANDS = (
-    ("svc", "power", "stayon", "true"),
-    ("input", "keyevent", "KEYCODE_WAKEUP"),
-    ("wm", "dismiss-keyguard"),
-)
-
-
-def find_sdk_program(name: str, sdk_subdir: str, environ: Mapping[str, str]) -> str:
-    """Find an Android SDK program on PATH or in either configured SDK root."""
-    path_match = shutil.which(name, path=environ.get("PATH", ""))
-    if path_match:
-        return path_match
-
-    executable = f"{name}.exe" if os.name == "nt" else name
-    locations: list[str] = ["PATH"]
-    for variable in _SDK_ENV_VARS:
-        root = environ.get(variable, "")
-        if root:
-            candidate = Path(root) / sdk_subdir / executable
-            locations.append(f"{variable} ({root})")
-            if candidate.is_file():
-                return str(candidate)
-        else:
-            locations.append(f"{variable} (not set)")
-
-    raise FileNotFoundError(
-        f"Android SDK program '{name}' not found. Looked on {', in '.join(locations)}."
-    )
 
 
 class CommandRunner(Protocol):
@@ -78,20 +47,9 @@ class AndroidEmulator:
         self._saved_stay_on: str | None = None
         self._has_saved_stay_on = False
 
-    def running_serials(self) -> list[str]:
+    def running_serials(self, timeout: float | None = None) -> list[str]:
         """Return online Android emulator serials reported by adb."""
-        result = self._runner.run(
-            [self._adb_path(), "devices"], capture_output=True, check=True, text=True
-        )
-        serials: list[str] = []
-        for line in result.stdout.splitlines()[1:]:
-            columns = line.split()
-            is_online_emulator = (
-                len(columns) >= 2 and columns[0].startswith("emulator-") and columns[1] == "device"
-            )
-            if is_online_emulator:
-                serials.append(columns[0])
-        return serials
+        return emulator_runtime.running_serials(self._runner, self.adb_path(), timeout)
 
     def ensure(self, avd: str | None, headless: bool, timeout: float) -> str:
         """Reuse an online emulator or launch the requested AVD and await boot."""
@@ -105,6 +63,26 @@ class AndroidEmulator:
             self._serial = next(
                 (serial for serial in existing if self.avd_name(serial) == avd), None
             )
+
+        if self._serial is not None:
+            serial = self._serial
+            self._wait_for_boot(serial, timeout)
+            seconds = package_manager_seconds(self._runner, self.adb_path(), serial)
+            if seconds >= SLOW_PACKAGE_MANAGER_SECONDS:
+                avd = restart_degraded(
+                    self._runner,
+                    self.adb_path(),
+                    serial,
+                    avd,
+                    seconds,
+                    self.avd_name,
+                    self.running_serials,
+                )
+                self._serial = None
+                existing.remove(serial)
+            else:
+                self._keep_awake(serial)
+                return serial
 
         if self._serial is None:
             if not avd:
@@ -180,26 +158,15 @@ class AndroidEmulator:
 
     def avd_name(self, serial: str) -> str:
         """Return the AVD name associated with an emulator serial, if known."""
-        result = self._runner.run(
-            [self.adb_path(), "-s", serial, "emu", "avd", "name"],
-            capture_output=True,
-            check=False,
-            text=True,
-        )
-        return next((line.strip() for line in result.stdout.splitlines() if line.strip()), "")
+        return emulator_runtime.avd_name(self._runner, self.adb_path(), serial)
 
     def _wait_for_serial(self, timeout: float, ignore: set[str] | None = None) -> str:
-        deadline = time.monotonic() + timeout
-        ignored = ignore or set()
-        while time.monotonic() < deadline:
-            if self._process is not None and self._process.poll() is not None:
-                raise RuntimeError("Android emulator exited before connecting to adb")
-            serials = self.running_serials()
-            available = [serial for serial in serials if serial not in ignored]
-            if available:
-                return available[0]
-            time.sleep(min(_BOOT_POLL_SECONDS, max(0, deadline - time.monotonic())))
-        raise TimeoutError("Android emulator did not connect to adb before timeout")
+        return emulator_runtime.wait_for_serial(
+            self._process,
+            timeout,
+            self.running_serials,
+            ignore,
+        )
 
     def adb_path(self) -> str:
         """Return the resolved adb executable path."""
@@ -216,69 +183,12 @@ class AndroidEmulator:
         return self._emulator
 
     def _wait_for_boot(self, serial: str, timeout: float) -> None:
-        deadline = time.monotonic() + timeout
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise TimeoutError(f"Android emulator {serial} did not become available before timeout")
-        try:
-            self._runner.run(
-                [self._adb_path(), "-s", serial, "wait-for-device"],
-                capture_output=True,
-                check=True,
-                text=True,
-                timeout=remaining,
-            )
-        except subprocess.TimeoutExpired as error:
-            raise TimeoutError(
-                f"Android emulator {serial} did not become available before timeout"
-            ) from error
-        while time.monotonic() < deadline:
-            result = self._runner.run(
-                [self._adb_path(), "-s", serial, "shell", "getprop", "sys.boot_completed"],
-                capture_output=True,
-                check=True,
-                text=True,
-            )
-            if result.stdout.strip() == "1":
-                return
-            time.sleep(min(_BOOT_POLL_SECONDS, max(0, deadline - time.monotonic())))
-        raise TimeoutError(f"Android emulator {serial} did not finish booting before timeout")
+        emulator_runtime.wait_for_boot(self._runner, self.adb_path(), serial, timeout)
 
     def _keep_awake(self, serial: str) -> None:
-        result = self._runner.run(
-            [
-                self._adb_path(),
-                "-s",
-                serial,
-                "shell",
-                "settings",
-                "get",
-                "global",
-                _STAY_ON_SETTING,
-            ],
-            capture_output=True,
-            check=True,
-            text=True,
-        )
-        saved_stay_on = result.stdout.strip()
-        self._saved_stay_on = None if saved_stay_on == "null" else saved_stay_on
+        self._saved_stay_on = emulator_runtime.keep_awake(self._runner, self.adb_path(), serial)
         self._has_saved_stay_on = True
-        for command in _WAKE_COMMANDS:
-            self._runner.run(
-                [self._adb_path(), "-s", serial, "shell", *command],
-                capture_output=True,
-                check=True,
-                text=True,
-            )
 
     @staticmethod
     def _kill_process_tree(pid: int) -> None:
-        try:
-            root = psutil.Process(pid)
-            children = root.children(recursive=True)
-        except psutil.NoSuchProcess:
-            return
-        for process in [*children, root]:
-            with suppress(psutil.NoSuchProcess, psutil.AccessDenied):
-                process.kill()
-        psutil.wait_procs([*children, root], timeout=_PROCESS_STOP_TIMEOUT)
+        emulator_runtime.kill_process_tree(pid)

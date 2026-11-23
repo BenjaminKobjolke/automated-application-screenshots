@@ -82,6 +82,7 @@ def test_reusing_running_emulator_does_not_need_emulator_program(tmp_path: Path)
         completed("List of devices attached\nemulator-5554\tdevice\n"),
         completed(),
         completed("1\n"),
+        completed("package:/system/framework/framework-res.apk\n"),
         completed("0\n"),
         completed(),
         completed(),
