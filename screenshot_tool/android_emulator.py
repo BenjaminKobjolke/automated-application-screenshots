@@ -4,30 +4,20 @@ from __future__ import annotations
 
 import os
 import subprocess
-from collections.abc import Mapping, Sequence
-from typing import Any, Protocol
+from collections.abc import Mapping
 
 from screenshot_tool import android_emulator_runtime as emulator_runtime
+from screenshot_tool.android_emulator_lifecycle import (
+    CommandRunner,
+    ensure_emulator,
+    stop_emulator,
+)
 from screenshot_tool.android_sdk import find_sdk_program
 from screenshot_tool.device_screen import DeviceScreen
-from screenshot_tool.emulator_health import (
-    SLOW_PACKAGE_MANAGER_SECONDS,
-    package_manager_seconds,
-    restart_degraded,
-)
 from screenshot_tool.emulator_rotation import EmulatorRotation
 
 _ADB = ("adb", "platform-tools")
 _EMULATOR = ("emulator", "emulator")
-_STAY_ON_SETTING = "stay_on_while_plugged_in"
-
-
-class CommandRunner(Protocol):
-    """Subprocess operations used by the emulator driver."""
-
-    def run(self, args: Sequence[str], **kwargs: Any) -> subprocess.CompletedProcess[str]: ...
-
-    def Popen(self, args: Sequence[str], **kwargs: Any) -> subprocess.Popen[str]: ...
 
 
 class AndroidEmulator:
@@ -55,98 +45,11 @@ class AndroidEmulator:
 
     def ensure(self, avd: str | None, headless: bool, timeout: float) -> str:
         """Reuse an online emulator or launch the requested AVD and await boot."""
-        existing = self.running_serials()
-        if avd is None:
-            if existing:
-                self._serial = existing[0]
-            else:
-                raise ValueError("live.avd is required when no Android emulator is running")
-        else:
-            self._serial = next(
-                (serial for serial in existing if self.avd_name(serial) == avd), None
-            )
-
-        if self._serial is not None:
-            serial = self._serial
-            self._wait_for_boot(serial, timeout)
-            seconds = package_manager_seconds(self._runner, self.adb_path(), serial)
-            if seconds >= SLOW_PACKAGE_MANAGER_SECONDS:
-                avd = restart_degraded(
-                    self._runner,
-                    self.adb_path(),
-                    serial,
-                    avd,
-                    seconds,
-                    self.avd_name,
-                    self.running_serials,
-                )
-                self._serial = None
-                existing.remove(serial)
-            else:
-                self._keep_awake(serial)
-                return serial
-
-        if self._serial is None:
-            if not avd:
-                raise ValueError("live.avd is required when no Android emulator is running")
-            command = [self._emulator_path(), "-avd", avd]
-            if headless:
-                command.append("-no-window")
-            command.append("-no-snapshot-save")
-            # A pending crash report can block startup on a hidden consent dialog.
-            command += ["-crash-report-mode", "disabled"]
-            self._process = self._runner.Popen(
-                command,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            self._owns_emulator = True
-            self._serial = self._wait_for_serial(timeout, ignore=set(existing))
-
-        self._wait_for_boot(self._serial, timeout)
-        self._keep_awake(self._serial)
-        return self._serial
+        return ensure_emulator(self, avd, headless, timeout)
 
     def stop(self) -> None:
         """Shut down only an emulator launched by this driver."""
-        self._remove_reverse()
-        if not self._owns_emulator:
-            if self._has_saved_stay_on and self._serial is not None:
-                restore_command = (
-                    ["settings", "put", "global", _STAY_ON_SETTING, self._saved_stay_on]
-                    if self._saved_stay_on is not None
-                    else ["settings", "delete", "global", _STAY_ON_SETTING]
-                )
-                self._runner.run(
-                    [
-                        self._adb_path(),
-                        "-s",
-                        self._serial,
-                        "shell",
-                        *restore_command,
-                    ],
-                    capture_output=True,
-                    check=False,
-                    text=True,
-                )
-            self._saved_stay_on = None
-            self._has_saved_stay_on = False
-            return
-        self._saved_stay_on = None
-        self._has_saved_stay_on = False
-        serial = self._serial
-        if serial:
-            self._runner.run(
-                [self._adb_path(), "-s", serial, "emu", "kill"],
-                capture_output=True,
-                check=False,
-                text=True,
-            )
-        if self._process is not None and self._process.poll() is None:
-            self._kill_process_tree(self._process.pid)
-        self._process = None
-        self._serial = None
-        self._owns_emulator = False
+        stop_emulator(self)
 
     @property
     def serial(self) -> str | None:
