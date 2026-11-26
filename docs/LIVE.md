@@ -28,7 +28,7 @@ Add a `live` object to the app's screenshot config:
 
 `emulator` and `adb` are taken from PATH, otherwise from `ANDROID_HOME` or `ANDROID_SDK_ROOT` (`emulator/`, `platform-tools/`); if none has them, `start` fails with an error naming the missing program and where it looked.
 
-`port` is the local TCP port the app connects to. The tool derives `AUTOMATION_HOST`: Windows uses `127.0.0.1:<port>` and the Android emulator uses `10.0.2.2:<port>`. `flutter` is a command prefix (`["flutter"]` by default), `run_args` adds arguments to `flutter run`, and `project_dir` resolves relative to the config file. `app_settings` are sent with each reset. A live `reset` command may replace them for this session; the replacement is used for later resets and after app reconnects. Keep credentials out of committed example configs; use a local config for test account tokens.
+`port` is the local TCP port the app connects to. The tool derives `AUTOMATION_HOST` as `127.0.0.1:<port>` for both targets. On Android, the tool sets up `adb reverse tcp:<port> tcp:<port>` before Flutter starts and removes it when the session stops. This keeps the automation connection available in airplane mode; other app traffic still uses the emulator's network. `flutter` is a command prefix (`["flutter"]` by default), `run_args` adds arguments to `flutter run`, and `project_dir` resolves relative to the config file. `app_settings` are sent with each reset. A live `reset` command may replace them for this session; the replacement is used for later resets and after app reconnects. Keep credentials out of committed example configs; use a local config for test account tokens.
 
 `start_timeout` covers Flutter's build, app launch, and connection. Reload, navigation, and screenshot requests have a 60 second timeout.
 
@@ -161,7 +161,7 @@ Any operation can reply with the existing `error` event and a message. After a h
 ## Troubleshooting
 
 - **Flutter command not found:** set `flutter` to the installed command prefix, such as `["fvm", "flutter"]`.
-- **Android app cannot connect:** use the derived emulator address `10.0.2.2`, and check that the configured port is available.
+- **Android app cannot connect:** check `adb -s <serial> reverse --list` shows the configured port, and that the port is free.
 - **No app connection before timeout:** confirm the connector is enabled in the debug build and that `project_dir` points to the Flutter app.
 - **Windows screenshots fail on a locked or minimized desktop:** unlock the desktop, restore the app window, then request the screenshot again.
 - **Hot reload reports a compile error:** fix the reported Dart error and send `reload` again. If reload cannot update the app, the tool attempts a hot restart or relaunch.

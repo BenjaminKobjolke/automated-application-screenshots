@@ -64,7 +64,7 @@ def test_run_command_derives_host_and_resolves_flutter_prefix(monkeypatch):
         "--machine",
         "-d",
         "emulator-5556",
-        "--dart-define=AUTOMATION_HOST=10.0.2.2:45123",
+        "--dart-define=AUTOMATION_HOST=127.0.0.1:45123",
         "--verbose",
         "--no-pub",
     ]

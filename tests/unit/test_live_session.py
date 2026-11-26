@@ -197,6 +197,47 @@ def test_android_start_tracks_app_package_after_connection(tmp_path):
     assert session._system_window._app_package == "com.example.app"
 
 
+def test_android_start_reverses_automation_port_before_flutter_starts(tmp_path):
+    session, emulator = make_session(tmp_path)
+    emulator.ensure.return_value = "emulator-5554"
+    session._started = False
+    session.daemon.wait_for_started.return_value = True
+    calls = MagicMock()
+    calls.attach_mock(emulator.reverse_port, "reverse_port")
+    calls.attach_mock(session.daemon.start, "daemon_start")
+
+    session.start()
+
+    assert calls.mock_calls.index(
+        ("reverse_port", (8766,), {})
+    ) < calls.mock_calls.index(("daemon_start", ("emulator-5554",), {}))
+
+
+def test_windows_start_does_not_reverse_port(tmp_path):
+    session, emulator = make_session(tmp_path, LiveTarget.WINDOWS)
+    session._started = False
+    session.daemon.wait_for_started.return_value = True
+
+    session.start()
+
+    emulator.reverse_port.assert_not_called()
+
+
+def test_relaunch_reapplies_port_reverse(tmp_path):
+    session, emulator = make_session(tmp_path)
+    session._device = "emulator-5554"
+    session.daemon.wait_for_started.return_value = True
+    calls = MagicMock()
+    calls.attach_mock(emulator.reverse_port, "reverse_port")
+    calls.attach_mock(session.daemon.start, "daemon_start")
+
+    session._relaunch("")
+
+    assert calls.mock_calls.index(
+        ("reverse_port", (8766,), {})
+    ) < calls.mock_calls.index(("daemon_start", ("emulator-5554",), {}))
+
+
 def test_android_start_keeps_app_routing_when_package_cannot_be_read(tmp_path, monkeypatch):
     session, emulator = make_session(tmp_path)
     emulator.ensure.return_value = "emulator-5554"

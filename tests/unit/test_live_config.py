@@ -154,7 +154,7 @@ def test_live_start_timeout_must_be_positive_non_boolean_number(tmp_path, timeou
     ("target", "port", "expected"),
     [
         (LiveTarget.WINDOWS, 8766, "127.0.0.1:8766"),
-        (LiveTarget.ANDROID_EMULATOR, 8766, "10.0.2.2:8766"),
+        (LiveTarget.ANDROID_EMULATOR, 8766, "127.0.0.1:8766"),
     ],
 )
 def test_automation_host_is_derived_from_target(target, port, expected):

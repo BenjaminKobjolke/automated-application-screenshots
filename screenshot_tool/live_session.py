@@ -83,6 +83,7 @@ class LiveSession:
                 self._device = device_id(self.settings.target, serial)
             else:
                 self._device = device_id(self.settings.target)
+            self._prepare_device()
             self.daemon.start(self._device)
             self._wait_for_app_start()
             self.app_link.accept_and_reset(self.settings, float(self.settings.start_timeout))
@@ -273,6 +274,7 @@ class LiveSession:
     def _relaunch(self, previous_output: str) -> ReloadResult:
         try:
             assert self._device is not None
+            self._prepare_device()
             self.daemon.start(self._device)
             self._wait_for_app_start()
             self.app_link.accept_and_reset(self.settings, float(self.settings.start_timeout))
@@ -284,3 +286,8 @@ class LiveSession:
                 self.daemon.output or previous_output,
             )
         return ReloadResult(ReloadOutcome.RELAUNCHED, "Flutter app relaunched")
+
+    def _prepare_device(self) -> None:
+        if self.settings.target is LiveTarget.ANDROID_EMULATOR:
+            assert self.emulator is not None
+            self.emulator.reverse_port(self.settings.port)

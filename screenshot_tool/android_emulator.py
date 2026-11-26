@@ -47,6 +47,7 @@ class AndroidEmulator:
         self._owns_emulator = False
         self._saved_stay_on: str | None = None
         self._has_saved_stay_on = False
+        self._reversed_port: int | None = None
 
     def running_serials(self, timeout: float | None = None) -> list[str]:
         """Return online Android emulator serials reported by adb."""
@@ -108,6 +109,7 @@ class AndroidEmulator:
 
     def stop(self) -> None:
         """Shut down only an emulator launched by this driver."""
+        self._remove_reverse()
         if not self._owns_emulator:
             if self._has_saved_stay_on and self._serial is not None:
                 restore_command = (
@@ -156,6 +158,47 @@ class AndroidEmulator:
         if self._serial is None:
             raise RuntimeError("emulator is not started")
         return EmulatorRotation(self._runner, self.adb_path(), self._serial)
+
+    def reverse_port(self, port: int) -> None:
+        """Forward an emulator loopback port to this host through adb."""
+        if self._serial is None:
+            raise RuntimeError("emulator is not started")
+        # adb reverse keeps loopback available in airplane mode, unlike 10.0.2.2.
+        self._runner.run(
+            [
+                self.adb_path(),
+                "-s",
+                self._serial,
+                "reverse",
+                f"tcp:{port}",
+                f"tcp:{port}",
+            ],
+            capture_output=True,
+            check=True,
+            text=True,
+        )
+        self._reversed_port = port
+
+    def _remove_reverse(self) -> None:
+        port = self._reversed_port
+        serial = self._serial
+        if port is None:
+            return
+        if serial is not None:
+            self._runner.run(
+                [
+                    self.adb_path(),
+                    "-s",
+                    serial,
+                    "reverse",
+                    "--remove",
+                    f"tcp:{port}",
+                ],
+                capture_output=True,
+                check=False,
+                text=True,
+            )
+        self._reversed_port = None
 
     def device_screen(self) -> DeviceScreen:
         """Create a full-device screen controller for the selected emulator."""

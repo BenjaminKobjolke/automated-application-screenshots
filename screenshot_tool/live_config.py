@@ -138,12 +138,15 @@ def parse_live(config_path: Path, data: Any) -> LiveSettings:
 
 
 def automation_host(target: LiveTarget, port: int) -> str:
-    """Derive the host address the app uses to reach the tool."""
+    """Derive the host address the app uses to reach the tool.
+
+    Emulator loopback relies on adb reverse so the automation link survives airplane mode.
+    """
     if not _is_valid_port(port):
         raise ValueError("port must be an integer from 1 to 65535")
     hosts = {
         LiveTarget.WINDOWS: "127.0.0.1",
-        LiveTarget.ANDROID_EMULATOR: "10.0.2.2",
+        LiveTarget.ANDROID_EMULATOR: "127.0.0.1",
     }
     try:
         host = hosts[target]
