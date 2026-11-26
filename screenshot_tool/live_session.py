@@ -2,21 +2,27 @@
 
 from __future__ import annotations
 
-import time
 from contextlib import nullcontext
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from .android_emulator import AndroidEmulator
-from .app_logger import AppLogger
 from .demo_protocol import DemoEvent
 from .demo_server import DemoServer, ScreenInfo
 from .flutter_daemon import FlutterDaemon
-from .live_app_link import _POLL_SECONDS, LiveAppLink
+from .live_app_link import LiveAppLink
 from .live_config import LiveSettings, LiveTarget, device_id
 from .live_gesture import GestureRequest, build_gesture_payload
 from .live_input import InputKind, InputRequest, build_input_payload
+from .live_session_workflows import (
+    capture_shot,
+    prepare_device,
+    relaunch_session,
+    reload_session,
+    track_app_package,
+    wait_for_app_start,
+)
 from .live_system_window import SystemWindow
 from .live_types import (
     LiveError,
@@ -25,13 +31,9 @@ from .live_types import (
     ShotOrientation,
     ShotRequest,
     ShotTheme,
-    build_navigation_payload,
-    build_screenshot_payload,
 )
 
 _COMMAND_TIMEOUT = 60.0
-_EXIT_GRACE_SECONDS = 0.5
-_UNRESPONSIVE_MESSAGE = "Flutter app stopped responding to hot reload and hot restart"
 
 __all__ = [
     "LiveError",
@@ -83,9 +85,9 @@ class LiveSession:
                 self._device = device_id(self.settings.target, serial)
             else:
                 self._device = device_id(self.settings.target)
-            self._prepare_device()
+            prepare_device(self.settings, self.emulator)
             self.daemon.start(self._device)
-            self._wait_for_app_start()
+            wait_for_app_start(self.daemon, self.settings)
             self.app_link.accept_and_reset(self.settings, float(self.settings.start_timeout))
             self._track_app_package()
             self._started = True
@@ -100,37 +102,7 @@ class LiveSession:
     def reload(self) -> ReloadResult:
         """Hot reload, falling back to hot restart and then a new Flutter run."""
         self._require_started()
-        output_before = self.daemon.output
-        hot_reload = self.daemon.restart(full=False, timeout=_COMMAND_TIMEOUT)
-        if hot_reload.success:
-            return ReloadResult(ReloadOutcome.RELOADED, hot_reload.message)
-
-        if self._wait_for_daemon_exit():
-            return self._relaunch(output_before)
-
-        hot_restart = self.daemon.restart(full=True, timeout=_COMMAND_TIMEOUT)
-        if hot_restart.success:
-            try:
-                self.app_link.accept_and_reset(self.settings, _COMMAND_TIMEOUT)
-            except LiveError as error:
-                return ReloadResult(ReloadOutcome.FAILED, error.message, error.output)
-            return ReloadResult(ReloadOutcome.RESTARTED, hot_restart.message)
-
-        if not self.daemon.is_running():
-            return self._relaunch(output_before)
-
-        if hot_restart.timed_out:
-            output = self._new_output(output_before)
-            # The app froze, so the next reload needs a fresh Flutter run.
-            self.daemon.stop()
-            return ReloadResult(ReloadOutcome.UNRESPONSIVE, _UNRESPONSIVE_MESSAGE, output)
-
-        message = hot_restart.message or hot_reload.message or "Flutter restart failed"
-        return ReloadResult(
-            ReloadOutcome.COMPILE_ERROR,
-            message,
-            self._new_output(output_before),
-        )
+        return reload_session(self, _COMMAND_TIMEOUT)
 
     def screens(self) -> tuple[ScreenInfo, ...]:
         """Ask the app for its registered screens."""
@@ -191,28 +163,9 @@ class LiveSession:
                 if self._system_window_in_front():
                     assert self._system_window is not None
                     return self._system_window.shot(request)
-                return self._capture_shot(request)
+                return capture_shot(self.app_link, request, _COMMAND_TIMEOUT)
         except TimeoutError as error:
             raise LiveError(str(error)) from error
-
-    def _capture_shot(self, request: ShotRequest) -> Path:
-        if request.theme is not None:
-            self.app_link.request(
-                {"command": "set_theme", "theme": request.theme.value},
-                "theme_set",
-                _COMMAND_TIMEOUT,
-            )
-        if request.screen is not None:
-            self.app_link.request(
-                build_navigation_payload(request), expected="navigated", timeout=_COMMAND_TIMEOUT
-            )
-        event = self.app_link.request(
-            build_screenshot_payload(request), expected="screenshot", timeout=_COMMAND_TIMEOUT
-        )
-        if event.png is None:
-            screen = repr(request.screen) if request.screen is not None else "the current state"
-            raise LiveError(f"app returned no PNG for {screen}")
-        return request.save_png(event.png)
 
     def stop(self) -> None:
         """Close the connection and stop only processes owned by this session."""
@@ -229,65 +182,15 @@ class LiveSession:
 
     def _track_app_package(self) -> None:
         """Remember the connected app package for later foreground checks."""
-        self._system_window = None
-        if self.settings.target is not LiveTarget.ANDROID_EMULATOR:
-            return
-        assert self.emulator is not None
-        try:
-            screen = self.emulator.device_screen()
-            app_package = screen.foreground_package()
-        except Exception as error:
-            AppLogger.warning(f"Could not record Android app package for system-window routing: {error}")
-            return
-        if app_package is None:
-            AppLogger.warning(
-                "Could not record Android app package for system-window routing; "
-                "keeping app-only capture behavior"
-            )
-            return
-        self._system_window = SystemWindow(screen, app_package)
+        self._system_window = track_app_package(self.settings, self.emulator)
 
     def _system_window_in_front(self) -> bool:
         """Check whether a non-app Android activity currently owns the display."""
         return self._system_window is not None and self._system_window.in_front()
 
-    def _wait_for_app_start(self) -> None:
-        if not self.daemon.wait_for_started(float(self.settings.start_timeout)):
-            raise LiveError("Flutter did not report app.started before timeout", self.daemon.output)
-
     def _require_started(self) -> None:
         if not self._started:
             raise LiveError("live session is not started")
 
-    def _new_output(self, previous: str) -> str:
-        current = self.daemon.output
-        if current.startswith(previous):
-            return current[len(previous) :].strip()
-        return current
-
-    def _wait_for_daemon_exit(self) -> bool:
-        deadline = time.monotonic() + _EXIT_GRACE_SECONDS
-        while self.daemon.is_running() and time.monotonic() < deadline:
-            time.sleep(_POLL_SECONDS)
-        return not self.daemon.is_running()
-
     def _relaunch(self, previous_output: str) -> ReloadResult:
-        try:
-            assert self._device is not None
-            self._prepare_device()
-            self.daemon.start(self._device)
-            self._wait_for_app_start()
-            self.app_link.accept_and_reset(self.settings, float(self.settings.start_timeout))
-            self._track_app_package()
-        except Exception as error:
-            return ReloadResult(
-                ReloadOutcome.COMPILE_ERROR,
-                str(error),
-                self.daemon.output or previous_output,
-            )
-        return ReloadResult(ReloadOutcome.RELAUNCHED, "Flutter app relaunched")
-
-    def _prepare_device(self) -> None:
-        if self.settings.target is LiveTarget.ANDROID_EMULATOR:
-            assert self.emulator is not None
-            self.emulator.reverse_port(self.settings.port)
+        return relaunch_session(self, previous_output)
