@@ -108,6 +108,12 @@ def stop(folder: str | Path, output: TextIO | None = None) -> int:
     try:
         response = send_line(folder, '{"command":"stop"}')
         if response.get("ok") is True:
+            if _is_server_process(session.pid):
+                with suppress(psutil.NoSuchProcess):
+                    try:
+                        psutil.Process(session.pid).wait(timeout=_SESSION_FILE_TIMEOUT)
+                    except psutil.TimeoutExpired:
+                        _stop_or_kill(folder, session)
             SessionFile.remove(folder)
             return _write_response({"ok": True, "stopped": True}, output, 0)
     except SessionGone:
