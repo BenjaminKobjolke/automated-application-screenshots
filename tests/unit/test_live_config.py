@@ -74,7 +74,7 @@ def test_live_devices_parses_name_to_avd_mapping(tmp_path):
 
 @pytest.mark.parametrize("devices", [[], "phone", {"": "Pixel_9"}, {"phone": ""}, {"phone": 1}])
 def test_live_devices_must_map_non_empty_strings(tmp_path, devices):
-    with pytest.raises(SystemExit, match="live.devices must map device names to AVD names"):
+    with pytest.raises(SystemExit, match=r"live.devices must map device names to AVD names"):
         load_config(
             write_config(
                 tmp_path,
@@ -88,7 +88,7 @@ def test_live_devices_must_map_non_empty_strings(tmp_path, devices):
 
 @pytest.mark.parametrize("target", ["ios", "", None, 1])
 def test_live_target_must_be_supported(tmp_path, target):
-    with pytest.raises(SystemExit, match="live.target"):
+    with pytest.raises(SystemExit, match=r"live.target"):
         load_config(
             write_config(
                 tmp_path,
@@ -99,7 +99,7 @@ def test_live_target_must_be_supported(tmp_path, target):
 
 @pytest.mark.parametrize("port", [True, "8766", 0, 65536, None])
 def test_live_port_must_be_valid_integer(tmp_path, port):
-    with pytest.raises(SystemExit, match="live.port"):
+    with pytest.raises(SystemExit, match=r"live.port"):
         load_config(
             write_config(
                 tmp_path,
@@ -110,7 +110,7 @@ def test_live_port_must_be_valid_integer(tmp_path, port):
 
 @pytest.mark.parametrize("value", ["flutter", [], ["flutter", 1], None])
 def test_live_flutter_command_must_be_a_non_empty_string_list(tmp_path, value):
-    with pytest.raises(SystemExit, match="live.flutter"):
+    with pytest.raises(SystemExit, match=r"live.flutter"):
         load_config(
             write_config(
                 tmp_path,
@@ -124,7 +124,7 @@ def test_live_flutter_command_must_be_a_non_empty_string_list(tmp_path, value):
 
 @pytest.mark.parametrize("value", ["flutter", ["flutter", 1], None])
 def test_live_run_args_must_be_a_string_list(tmp_path, value):
-    with pytest.raises(SystemExit, match="live.run_args"):
+    with pytest.raises(SystemExit, match=r"live.run_args"):
         load_config(
             write_config(
                 tmp_path,
@@ -138,7 +138,7 @@ def test_live_run_args_must_be_a_string_list(tmp_path, value):
 
 @pytest.mark.parametrize("timeout", [True, 0, -1, "10", None])
 def test_live_start_timeout_must_be_positive_non_boolean_number(tmp_path, timeout):
-    with pytest.raises(SystemExit, match="live.start_timeout"):
+    with pytest.raises(SystemExit, match=r"live.start_timeout"):
         load_config(
             write_config(
                 tmp_path,
