@@ -37,7 +37,8 @@ class SystemWindow:
 
     def gesture(self, request: GestureRequest) -> None:
         """Perform a supported tap or drag on the full Android screen."""
-        if request.kind is GestureKind.PINCH or request.screen is not None or request.section:
+        has_target_section = request.screen is not None or bool(request.section)
+        if request.kind is GestureKind.PINCH or has_target_section:
             raise LiveError(_SYSTEM_WINDOW_ERROR)
         if request.kind is GestureKind.TAP:
             if request.at is None:
@@ -60,6 +61,7 @@ class SystemWindow:
 
     def shot(self, request: ShotRequest) -> Path:
         """Save a full-device screenshot when no app-specific options were requested."""
-        if request.screen is not None or request.theme is not None or request.section is not None:
+        has_app_specific_options = request.theme is not None or request.section is not None
+        if request.screen is not None or has_app_specific_options:
             raise LiveError(_SYSTEM_WINDOW_ERROR)
         return request.save_png(self._screen.capture_png())

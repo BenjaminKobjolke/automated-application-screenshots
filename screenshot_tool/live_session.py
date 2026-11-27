@@ -18,6 +18,7 @@ from .live_input import InputKind, InputRequest, build_input_payload
 from .live_session_workflows import (
     capture_shot,
     prepare_device,
+    recover_named_android_shot,
     relaunch_session,
     reload_session,
     track_app_package,
@@ -25,7 +26,9 @@ from .live_session_workflows import (
 )
 from .live_system_window import SystemWindow
 from .live_types import (
+    LiveConnectionLost,
     LiveError,
+    LiveFlutterExited,
     ReloadOutcome,
     ReloadResult,
     ShotOrientation,
@@ -35,15 +38,8 @@ from .live_types import (
 
 _COMMAND_TIMEOUT = 60.0
 
-__all__ = [
-    "LiveError",
-    "LiveSession",
-    "ReloadOutcome",
-    "ReloadResult",
-    "ShotOrientation",
-    "ShotRequest",
-    "ShotTheme",
-]
+__all__ = ["LiveError", "LiveSession", "ReloadOutcome", "ReloadResult",
+           "ShotOrientation", "ShotRequest", "ShotTheme"]
 
 
 class LiveSession:
@@ -55,6 +51,7 @@ class LiveSession:
         server: DemoServer | None = None,
         daemon: FlutterDaemon | None = None,
         emulator: AndroidEmulator | None = None,
+        log_dir: Path | None = None,
     ) -> None:
         self.settings = settings
         self.server = server if server is not None else DemoServer(port=settings.port)
@@ -63,7 +60,7 @@ class LiveSession:
         if emulator is not None:
             self.emulator = emulator
         elif settings.target is LiveTarget.ANDROID_EMULATOR:
-            self.emulator = AndroidEmulator()
+            self.emulator = AndroidEmulator(log_dir=log_dir)
         else:
             self.emulator = None
         self._device: str | None = None
@@ -164,6 +161,10 @@ class LiveSession:
                     assert self._system_window is not None
                     return self._system_window.shot(request)
                 return capture_shot(self.app_link, request, _COMMAND_TIMEOUT)
+        except (LiveConnectionLost, LiveFlutterExited) as error:
+            if request.screen is None or self.settings.target is not LiveTarget.ANDROID_EMULATOR:
+                raise
+            return recover_named_android_shot(self, request, error, _COMMAND_TIMEOUT)
         except TimeoutError as error:
             raise LiveError(str(error)) from error
 

@@ -7,7 +7,7 @@ from .demo_protocol import DemoEvent
 from .demo_server import DemoServer
 from .flutter_daemon import FlutterDaemon
 from .live_config import LiveSettings
-from .live_types import LiveConnectionLost, LiveError, LiveEventTimeout
+from .live_types import LiveConnectionLost, LiveError, LiveEventTimeout, LiveFlutterExited
 
 _POLL_SECONDS = 0.1
 # The connector's reset responds within about 65 seconds (60 seconds to prepare plus settling).
@@ -34,7 +34,9 @@ class LiveAppLink:
             remaining = deadline - time.monotonic()
             if remaining <= 0 or not self.server.accept(remaining):
                 if last_error is None:
-                    raise LiveError("Flutter app did not connect before timeout", self.daemon.output)
+                    raise LiveError(
+                        "Flutter app did not connect before timeout", self.daemon.output
+                    )
                 if isinstance(last_error, LiveEventTimeout):
                     raise LiveError(
                         f"{last_error.message}; no other app completed the reset before timeout",
@@ -71,9 +73,7 @@ class LiveAppLink:
                 last_error = error
             AppLogger.info(f"Ignoring stale app connection: {last_error}")
 
-    def request(
-        self, request: dict[str, object], expected: str, timeout: float
-    ) -> DemoEvent:
+    def request(self, request: dict[str, object], expected: str, timeout: float) -> DemoEvent:
         """Send one app command and wait for its matching event."""
         self.server.send(request)
         return self.await_event(expected, timeout)
@@ -83,7 +83,9 @@ class LiveAppLink:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             if not self.daemon.is_running():
-                raise LiveError("Flutter process exited while waiting for the app", self.daemon.output)
+                raise LiveFlutterExited(
+                    "Flutter process exited while waiting for the app", self.daemon.output
+                )
             try:
                 event = self.server.next_event(min(_POLL_SECONDS, deadline - time.monotonic()))
             except (ConnectionError, OSError) as error:
@@ -97,6 +99,4 @@ class LiveAppLink:
                 raise LiveError(event.message or "app command failed")
             if event.event == expected:
                 return event
-        raise LiveEventTimeout(
-            f"timed out waiting for app event {expected!r}", self.daemon.output
-        )
+        raise LiveEventTimeout(f"timed out waiting for app event {expected!r}", self.daemon.output)

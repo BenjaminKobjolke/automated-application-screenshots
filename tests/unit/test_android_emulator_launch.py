@@ -7,10 +7,13 @@ from unittest.mock import MagicMock
 
 from android_fakes import completed, env_with_sdk, fake_sdk
 
+from screenshot_tool import android_emulator_runtime
 from screenshot_tool.android_emulator import AndroidEmulator
 
 
-def _owned_emulator(tmp_path: Path) -> tuple[MagicMock, AndroidEmulator]:
+def _owned_emulator(
+    tmp_path: Path, log_dir: Path | None = None
+) -> tuple[MagicMock, AndroidEmulator]:
     sdk = fake_sdk(tmp_path / "sdk")
     runner = MagicMock(spec=subprocess)
     runner.run.side_effect = [
@@ -28,7 +31,7 @@ def _owned_emulator(tmp_path: Path) -> tuple[MagicMock, AndroidEmulator]:
     process.pid = 123
     process.poll.return_value = None
     runner.Popen.return_value = process
-    return runner, AndroidEmulator(runner=runner, environ=env_with_sdk(sdk))
+    return runner, AndroidEmulator(runner=runner, environ=env_with_sdk(sdk), log_dir=log_dir)
 
 
 def test_stop_of_owned_emulator_skips_stay_on_restore(tmp_path: Path):
@@ -116,6 +119,39 @@ def test_ensure_starts_and_owns_headless_emulator(tmp_path: Path):
         check=False,
         text=True,
     )
+
+
+def test_ensure_records_emulator_output_and_logcat(tmp_path: Path):
+    log_dir = tmp_path / "session"
+    runner, emulator = _owned_emulator(tmp_path, log_dir)
+
+    emulator.ensure("Pixel_8_API_35", headless=True, timeout=5)
+
+    assert runner.Popen.call_count == 2
+    launch = runner.Popen.call_args_list[0]
+    assert launch.kwargs["stdout"].name == str(log_dir / "emulator.log")
+    assert launch.kwargs["stderr"] is launch.kwargs["stdout"]
+    logcat = runner.Popen.call_args_list[1]
+    adb = str(tmp_path / "sdk" / "platform-tools" / ("adb.exe" if os.name == "nt" else "adb"))
+    assert logcat.args[0] == [adb, "-s", "emulator-5554", "logcat", "-v", "threadtime", "-T", "1"]
+    assert logcat.kwargs["stdout"].name == str(log_dir / "logcat.txt")
+    emulator.stop()
+
+
+def test_ensure_stops_owned_emulator_when_adb_no_longer_lists_it(tmp_path, monkeypatch):
+    _runner, emulator = _owned_emulator(tmp_path)
+    stale_process = MagicMock(spec=subprocess.Popen)
+    stale_process.pid = 456
+    stale_process.poll.return_value = None
+    emulator._process = stale_process
+    emulator._serial = "emulator-5554"
+    emulator._owns_emulator = True
+    kill_tree = MagicMock()
+    monkeypatch.setattr(android_emulator_runtime, "kill_process_tree", kill_tree)
+
+    emulator.ensure("Pixel_8_API_35", headless=True, timeout=5)
+
+    kill_tree.assert_called_once_with(456)
 
 
 def test_ensure_disables_crash_report_prompt_with_window(tmp_path: Path):

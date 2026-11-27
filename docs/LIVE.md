@@ -194,6 +194,8 @@ Configure `live.target` as `android_emulator`, or pass `--target android_emulato
 
 During a live session, the tool keeps the emulator screen on and unlocked, then restores the prior setting when it reuses an already-running emulator.
 
+Detached Android sessions also keep `emulator.log` (the emulator process output) and `logcat.txt` (the device log, starting at the current boot) in the session folder. If a named `shot` loses its app connection or Flutter process, the tool records the device state in `live.log`, ensures the configured emulator is available, relaunches Flutter, and retries that shot once. A failed recovery reports whether adb still lists the emulator and where the logs are. Only named screenshots are retried. To capture a section, send `screen` and `section` as separate fields, for example `{"command":"shot","screen":"todo_detail","section":"origin","out":"C:/temp/todo-detail-origin.png"}`; do not encode the section as `screen@section`.
+
 ```text
 adb -s emulator-5554 shell am start -a android.intent.action.VIEW -d <url>
 ```

@@ -18,6 +18,7 @@ from .live_cli import LiveCLI
 from .live_config import LiveSettings, LiveTarget
 from .live_control import ControlServer, SessionFile, SessionGone, send_line
 from .live_session import LiveSession
+from .live_settings_data import settings_from_data, settings_to_data
 from .process_tree import kill_process_tree
 
 _POLL_SECONDS = 0.05
@@ -28,9 +29,7 @@ _OTHER_START_STAGES = 2
 _START_REPLY_MARGIN_SECONDS = 60
 
 
-def start(
-    folder: str | Path, settings: LiveSettings, output: TextIO | None = None
-) -> int:
+def start(folder: str | Path, settings: LiveSettings, output: TextIO | None = None) -> int:
     """Start a detached live session and print its successful start reply."""
     directory = Path(folder).expanduser().resolve()
     session = SessionFile.read(directory)
@@ -48,10 +47,8 @@ def start(
             process = _spawn_server(command, Path.cwd(), log)
             if process.stdin is None:
                 raise OSError("detached server settings pipe was not created")
-            process.stdin.write(
-                json.dumps(_settings_data(settings), separators=(",", ":")).encode("utf-8")
-                + b"\n"
-            )
+            settings_line = json.dumps(settings_to_data(settings), separators=(",", ":"))
+            process.stdin.write(settings_line.encode("utf-8") + b"\n")
             process.stdin.close()
         deadline = time.monotonic() + _SESSION_FILE_TIMEOUT
         while time.monotonic() < deadline:
@@ -91,11 +88,7 @@ def send(folder: str | Path, line: str, output: TextIO | None = None) -> int:
 def start_reply_timeout(settings: LiveSettings) -> float:
     """Allow one timeout per bounded startup stage, plus the existing margin."""
     # Android adds adb serial and emulator boot waits before Flutter and app connection/reset.
-    stages = (
-        _ANDROID_START_STAGES
-        if settings.target is LiveTarget.ANDROID_EMULATOR
-        else _OTHER_START_STAGES
-    )
+    stages = _ANDROID_START_STAGES if settings.target is LiveTarget.ANDROID_EMULATOR else _OTHER_START_STAGES
     return float(settings.start_timeout * stages + _START_REPLY_MARGIN_SECONDS)
 
 
@@ -129,9 +122,9 @@ def serve(folder: str | Path, settings: LiveSettings) -> int:
     directory.mkdir(parents=True, exist_ok=True)
     server = ControlServer()
     token = secrets.token_urlsafe(32)
-    timeout = float(settings.start_timeout) + 60.0
+    timeout = start_reply_timeout(settings)
     SessionFile(server.port, token, os.getpid(), timeout).write(directory)
-    cli = LiveCLI(LiveSession(settings), sys.stdin, sys.stdout)
+    cli = LiveCLI(LiveSession(settings, log_dir=directory), sys.stdin, sys.stdout)
     try:
         server.serve(cli, token)
     finally:
@@ -142,10 +135,8 @@ def serve(folder: str | Path, settings: LiveSettings) -> int:
 
 
 def _stop_or_kill(folder: str | Path, session: SessionFile) -> None:
-    try:
+    with suppress(SessionGone):
         send_line(folder, '{"command":"stop"}')
-    except SessionGone:
-        pass
     if _is_server_process(session.pid):
         kill_process_tree(session.pid)
     SessionFile.remove(folder)
@@ -180,42 +171,7 @@ def _spawn_server(
     return subprocess.Popen(**options, start_new_session=True)
 
 
-def _settings_data(settings: LiveSettings) -> dict[str, object]:
-    return {
-        "target": settings.target.value,
-        "port": settings.port,
-        "avd": settings.avd,
-        "devices": settings.devices,
-        "headless": settings.headless,
-        "flutter": list(settings.flutter),
-        "run_args": list(settings.run_args),
-        "project_dir": str(settings.project_dir),
-        "app_settings": settings.app_settings,
-        "start_timeout": settings.start_timeout,
-    }
-
-
-def _settings_from_data(value: str) -> LiveSettings:
-    data = json.loads(value)
-    if not isinstance(data, dict):
-        raise ValueError("invalid detached live settings")
-    return LiveSettings(
-        target=LiveTarget(data["target"]),
-        port=data["port"],
-        avd=data["avd"],
-        devices=data["devices"],
-        headless=data["headless"],
-        flutter=tuple(data["flutter"]),
-        run_args=tuple(data["run_args"]),
-        project_dir=Path(data["project_dir"]),
-        app_settings=data["app_settings"],
-        start_timeout=data["start_timeout"],
-    )
-
-
-def _write_response(
-    response: dict[str, object], output: TextIO | None, exit_code: int
-) -> int:
+def _write_response(response: dict[str, object], output: TextIO | None, exit_code: int) -> int:
     stream = output if output is not None else sys.stdout
     stream.write(json.dumps(response, separators=(",", ":")) + "\n")
     stream.flush()
@@ -229,7 +185,7 @@ def _main() -> int:
         settings_line = sys.stdin.readline()
         if not settings_line:
             raise ValueError("detached live settings were not provided")
-        settings = _settings_from_data(settings_line)
+        settings = settings_from_data(settings_line)
         return serve(sys.argv[2], settings)
     except Exception as error:
         sys.stderr.write(f"detached live session failed: {error}\n")

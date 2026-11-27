@@ -11,10 +11,12 @@ from .android_emulator import AndroidEmulator
 from .app_logger import AppLogger
 from .flutter_daemon import FlutterDaemon
 from .live_app_link import _POLL_SECONDS, LiveAppLink
-from .live_config import LiveSettings, LiveTarget
+from .live_config import LiveSettings, LiveTarget, device_id
 from .live_system_window import SystemWindow
 from .live_types import (
+    LiveConnectionLost,
     LiveError,
+    LiveFlutterExited,
     ReloadOutcome,
     ReloadResult,
     ShotRequest,
@@ -36,6 +38,8 @@ class LiveSessionWorkflowHost(Protocol):
     _device: str | None
 
     def _track_app_package(self) -> None: ...
+
+    def _relaunch(self, previous_output: str) -> ReloadResult: ...
 
 
 def reload_session(session: LiveSessionWorkflowHost, command_timeout: float) -> ReloadResult:
@@ -136,6 +140,35 @@ def capture_shot(app_link: LiveAppLink, request: ShotRequest, command_timeout: f
         screen = repr(request.screen) if request.screen is not None else "the current state"
         raise LiveError(f"app returned no PNG for {screen}")
     return request.save_png(event.png)
+
+
+def recover_named_android_shot(
+    session: LiveSessionWorkflowHost,
+    request: ShotRequest,
+    error: LiveConnectionLost | LiveFlutterExited,
+    command_timeout: float,
+) -> Path:
+    """Reconnect once when a named Android screenshot loses its Flutter connection."""
+    assert session.emulator is not None
+    device_state = session.emulator.device_state()
+    AppLogger.warning(f"Android device lost during shot: {device_state}; relaunching once")
+    try:
+        serial = session.emulator.ensure(
+            session.settings.avd,
+            session.settings.headless,
+            float(session.settings.start_timeout),
+        )
+        session._device = device_id(session.settings.target, serial)
+        result = session._relaunch(session.daemon.output)
+        if result.outcome is not ReloadOutcome.RELAUNCHED:
+            raise LiveError(result.message or "Flutter app could not be relaunched", result.output)
+        return capture_shot(session.app_link, request, command_timeout)
+    except Exception as recovery_error:
+        state = session.emulator.device_state()
+        raise LiveError(
+            f"Android shot recovery failed ({state}): {recovery_error}",
+            getattr(recovery_error, "output", session.daemon.output),
+        ) from error
 
 
 def track_app_package(settings: LiveSettings, emulator: AndroidEmulator | None) -> SystemWindow | None:

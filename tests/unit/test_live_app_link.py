@@ -11,7 +11,12 @@ from screenshot_tool.demo_server import DemoServer
 from screenshot_tool.flutter_daemon import FlutterDaemon
 from screenshot_tool.live_app_link import LiveAppLink
 from screenshot_tool.live_config import LiveSettings, LiveTarget
-from screenshot_tool.live_types import LiveConnectionLost, LiveError, LiveEventTimeout
+from screenshot_tool.live_types import (
+    LiveConnectionLost,
+    LiveError,
+    LiveEventTimeout,
+    LiveFlutterExited,
+)
 
 
 def make_link(tmp_path: Path) -> tuple[LiveAppLink, MagicMock, MagicMock, LiveSettings]:
@@ -133,7 +138,7 @@ def test_accept_timeout_without_connection_loss_keeps_existing_message(tmp_path)
     link, server, _daemon, settings = make_link(tmp_path)
     server.accept.return_value = False
 
-    with pytest.raises(LiveError, match="^Flutter app did not connect before timeout$"):
+    with pytest.raises(LiveError, match=r"^Flutter app did not connect before timeout$"):
         link.accept_and_reset(settings, 1.0)
 
 
@@ -146,3 +151,11 @@ def test_await_event_marks_connection_loss_as_live_connection_lost(tmp_path):
 
     assert isinstance(error.value, LiveError)
     assert "demo app closed the event connection" in str(error.value)
+
+
+def test_await_event_marks_flutter_exit_as_recoverable(tmp_path):
+    link, _server, daemon, _settings = make_link(tmp_path)
+    daemon.is_running.return_value = False
+
+    with pytest.raises(LiveFlutterExited, match=r"Flutter process exited"):
+        link.await_event("navigated", 1.0)

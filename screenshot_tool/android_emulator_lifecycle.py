@@ -33,6 +33,7 @@ class EmulatorLifecycleHost(Protocol):
     _owns_emulator: bool
     _saved_stay_on: str | None
     _has_saved_stay_on: bool
+    _logs: Any
 
     def running_serials(self) -> list[str]: ...
 
@@ -51,9 +52,12 @@ class EmulatorLifecycleHost(Protocol):
     def _remove_reverse(self) -> None: ...
 
 
-def ensure_emulator(host: EmulatorLifecycleHost, avd: str | None, headless: bool, timeout: float) -> str:
+def ensure_emulator(
+    host: EmulatorLifecycleHost, avd: str | None, headless: bool, timeout: float
+) -> str:
     """Reuse an online emulator or launch the requested AVD and await boot."""
     existing = host.running_serials()
+    owned_serial = host._serial
     if avd is None:
         if existing:
             host._serial = existing[0]
@@ -61,6 +65,8 @@ def ensure_emulator(host: EmulatorLifecycleHost, avd: str | None, headless: bool
             raise ValueError("live.avd is required when no Android emulator is running")
     else:
         host._serial = next((serial for serial in existing if host.avd_name(serial) == avd), None)
+
+    _stop_unlisted_owned_emulator(host, existing, owned_serial)
 
     if host._serial is not None:
         serial = host._serial
@@ -80,6 +86,8 @@ def ensure_emulator(host: EmulatorLifecycleHost, avd: str | None, headless: bool
             existing.remove(serial)
         else:
             host._keep_awake(serial)
+            if host._logs is not None:
+                host._logs.start_logcat(host.adb_path(), serial)
             return serial
 
     if host._serial is None:
@@ -91,50 +99,73 @@ def ensure_emulator(host: EmulatorLifecycleHost, avd: str | None, headless: bool
         command.append("-no-snapshot-save")
         # A pending crash report can block startup on a hidden consent dialog.
         command += ["-crash-report-mode", "disabled"]
-        host._process = host._runner.Popen(
-            command,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        output = host._logs.open_emulator_output() if host._logs is not None else subprocess.DEVNULL
+        host._process = host._runner.Popen(command, stdout=output, stderr=output)
         host._owns_emulator = True
         host._serial = host._wait_for_serial(timeout, ignore=set(existing))
 
     host._wait_for_boot(host._serial, timeout)
     host._keep_awake(host._serial)
+    if host._logs is not None:
+        host._logs.start_logcat(host.adb_path(), host._serial)
     return host._serial
+
+
+def _stop_unlisted_owned_emulator(
+    host: EmulatorLifecycleHost, existing: list[str], owned_serial: str | None
+) -> None:
+    """Clear a stale owned process before starting a replacement AVD."""
+    process = host._process
+    if host._serial is not None:
+        return
+    if not host._owns_emulator or process is None:
+        return
+    if owned_serial is None or owned_serial in existing:
+        return
+    if process.poll() is not None:
+        return
+
+    # ADB can lose a still-running owned process; clear it before launching its replacement.
+    emulator_runtime.kill_process_tree(process.pid)
+    host._process = None
+    host._owns_emulator = False
 
 
 def stop_emulator(host: EmulatorLifecycleHost) -> None:
     """Shut down only a driver-owned emulator and restore reused-device settings."""
-    host._remove_reverse()
-    if not host._owns_emulator:
-        if host._has_saved_stay_on and host._serial is not None:
-            restore_command = (
-                ["settings", "put", "global", _STAY_ON_SETTING, host._saved_stay_on]
-                if host._saved_stay_on is not None
-                else ["settings", "delete", "global", _STAY_ON_SETTING]
-            )
+    try:
+        host._remove_reverse()
+        if not host._owns_emulator:
+            if host._has_saved_stay_on and host._serial is not None:
+                restore_command = (
+                    ["settings", "put", "global", _STAY_ON_SETTING, host._saved_stay_on]
+                    if host._saved_stay_on is not None
+                    else ["settings", "delete", "global", _STAY_ON_SETTING]
+                )
+                host._runner.run(
+                    [host.adb_path(), "-s", host._serial, "shell", *restore_command],
+                    capture_output=True,
+                    check=False,
+                    text=True,
+                )
+            host._saved_stay_on = None
+            host._has_saved_stay_on = False
+            return
+        host._saved_stay_on = None
+        host._has_saved_stay_on = False
+        serial = host._serial
+        if serial:
             host._runner.run(
-                [host.adb_path(), "-s", host._serial, "shell", *restore_command],
+                [host.adb_path(), "-s", serial, "emu", "kill"],
                 capture_output=True,
                 check=False,
                 text=True,
             )
-        host._saved_stay_on = None
-        host._has_saved_stay_on = False
-        return
-    host._saved_stay_on = None
-    host._has_saved_stay_on = False
-    serial = host._serial
-    if serial:
-        host._runner.run(
-            [host.adb_path(), "-s", serial, "emu", "kill"],
-            capture_output=True,
-            check=False,
-            text=True,
-        )
-    if host._process is not None and host._process.poll() is None:
-        emulator_runtime.kill_process_tree(host._process.pid)
-    host._process = None
-    host._serial = None
-    host._owns_emulator = False
+        if host._process is not None and host._process.poll() is None:
+            emulator_runtime.kill_process_tree(host._process.pid)
+        host._process = None
+        host._serial = None
+        host._owns_emulator = False
+    finally:
+        if host._logs is not None:
+            host._logs.close()

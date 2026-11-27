@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 from collections.abc import Mapping
+from pathlib import Path
 
 from screenshot_tool import android_emulator_runtime as emulator_runtime
 from screenshot_tool.android_emulator_lifecycle import (
@@ -14,6 +15,7 @@ from screenshot_tool.android_emulator_lifecycle import (
 )
 from screenshot_tool.android_sdk import find_sdk_program
 from screenshot_tool.device_screen import DeviceScreen
+from screenshot_tool.emulator_logs import EmulatorLogs
 from screenshot_tool.emulator_rotation import EmulatorRotation
 
 _ADB = ("adb", "platform-tools")
@@ -27,6 +29,7 @@ class AndroidEmulator:
         self,
         runner: CommandRunner = subprocess,
         environ: Mapping[str, str] = os.environ,
+        log_dir: Path | None = None,
     ) -> None:
         self._runner = runner
         self._environ = environ
@@ -38,6 +41,7 @@ class AndroidEmulator:
         self._saved_stay_on: str | None = None
         self._has_saved_stay_on = False
         self._reversed_port: int | None = None
+        self._logs = EmulatorLogs(log_dir, runner) if log_dir is not None else None
 
     def running_serials(self, timeout: float | None = None) -> list[str]:
         """Return online Android emulator serials reported by adb."""
@@ -50,6 +54,29 @@ class AndroidEmulator:
     def stop(self) -> None:
         """Shut down only an emulator launched by this driver."""
         stop_emulator(self)
+
+    def device_state(self) -> str:
+        """Describe adb visibility, owned process state, and available logs."""
+        try:
+            listed = self._serial in self.running_serials() if self._serial else False
+        except (OSError, subprocess.SubprocessError) as error:
+            state = f"could not query adb: {error}"
+        else:
+            state = (
+                f"{self._serial} is still listed by adb"
+                if listed
+                else f"{self._serial or 'emulator'} is not listed by adb"
+            )
+        if self._owns_emulator and self._process is not None:
+            exit_code = self._process.poll()
+            state += (
+                f"; emulator process exited with code {exit_code}"
+                if exit_code is not None
+                else "; emulator process is still running"
+            )
+        if self._logs is not None:
+            state += f"; logs: {self._logs.emulator_path}, {self._logs.logcat_path}"
+        return state
 
     @property
     def serial(self) -> str | None:
