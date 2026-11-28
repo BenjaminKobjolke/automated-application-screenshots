@@ -3,27 +3,22 @@
 from __future__ import annotations
 
 import json
-import re
 import sys
 from dataclasses import dataclass
 from enum import Enum
+from time import monotonic
 from typing import TextIO
 
-from .demo_server import ScreenInfo
+from .app_logger import AppLogger
+from .live_app_link import _now
+from .live_cli_codec import _input_response, _screen_json, _shot_request
 from .live_gesture import parse_gesture_request
-from .live_input import InputKind, InputRequest, PressKey, parse_input_request
+from .live_input import InputKind, parse_input_request
 from .live_session import (
     LiveError,
     LiveSession,
     ReloadOutcome,
-    ShotOrientation,
-    ShotRequest,
-    ShotTheme,
 )
-from .visible_text import VisibleTextEntry
-
-# BCP 47 style codes with underscores are accepted for Flutter locale names.
-_LANGUAGE_CODE = re.compile(r"[A-Za-z]{2,3}([-_][A-Za-z0-9]{2,8})*")
 
 
 class LiveCommand(str, Enum):
@@ -82,44 +77,68 @@ class LiveCLI:
 
     def respond(self, line: str) -> LiveReply:
         """Handle one command and return its response without writing it."""
+        started_at = monotonic()
+        command: str | None = None
+        succeeded = False
         try:
             request = json.loads(line)
             if not isinstance(request, dict):
                 raise ValueError("request must be a JSON object")
-            command = request.get("command")
-            if not isinstance(command, str):
+            raw_command = request.get("command")
+            if not isinstance(raw_command, str):
                 raise ValueError("request must include a string command")
+            command = raw_command
+            AppLogger.info(f"Received '{command}' at {_now()}")
             try:
                 kind = LiveCommand(command)
             except ValueError:
                 raise ValueError(f"unknown command: {command}") from None
             response = self._execute(kind, request)
-            response["command"] = command
-            if "id" in request:
-                response["id"] = request["id"]
+            _copy_request_metadata(response, request)
+            succeeded = response.get("ok") is True
             return LiveReply(response, kind is not LiveCommand.STOP)
         except (json.JSONDecodeError, ValueError, TypeError) as error:
             response = {"ok": False, "error": str(error)}
-            has_valid_request_command = (
-                "request" in locals()
-                and isinstance(request, dict)
-                and isinstance(request.get("command"), str)
-            )
-            if has_valid_request_command:
-                response["command"] = request["command"]
-                if "id" in request:
-                    response["id"] = request["id"]
+            if "request" in locals() and isinstance(request, dict):
+                _copy_request_metadata(response, request)
             return LiveReply(response, True)
         except LiveError as error:
             response: dict[str, object] = {"ok": False, "error": error.message}
             if error.output:
                 response["output"] = error.output
             if "request" in locals() and isinstance(request, dict):
-                if isinstance(request.get("command"), str):
-                    response["command"] = request["command"]
-                if "id" in request:
-                    response["id"] = request["id"]
+                _copy_request_metadata(response, request)
             return LiveReply(response, True)
+        except Exception as error:
+            AppLogger.error(
+                f"Unexpected live command error: {type(error).__name__}: {error}"
+            )
+            response = {
+                "ok": False,
+                "error": f"{type(error).__name__}: {error}",
+            }
+            if "request" in locals() and isinstance(request, dict):
+                _copy_request_metadata(response, request)
+            return LiveReply(response, True)
+        finally:
+            if command is not None:
+                duration = max(monotonic() - started_at, 0.0)
+                result = "succeeded" if succeeded else "failed"
+                message = f"Live command '{command}' {result} in {duration:.1f}s"
+                if succeeded:
+                    AppLogger.info(message)
+                else:
+                    AppLogger.error(message)
+                    if command not in {LiveCommand.START.value, LiveCommand.STOP.value}:
+                        try:
+                            state = self._session.device_state()
+                            if state:
+                                AppLogger.warning(f"Android device state: {state}")
+                        except Exception as state_error:
+                            AppLogger.error(
+                                "Could not read Android device state: "
+                                f"{type(state_error).__name__}: {state_error}"
+                            )
 
     def _execute(self, command: LiveCommand, request: dict[str, object]) -> dict[str, object]:
         if command is LiveCommand.STOP:
@@ -187,97 +206,12 @@ class LiveCLI:
             self._session.stop()
 
 
-def _input_response(
-    request: InputRequest, entries: tuple[VisibleTextEntry, ...] | None
-) -> dict[str, object]:
-    """Serialize a successful connector input reply for the CLI protocol."""
-    if request.kind is InputKind.READ_TEXT:
-        return {
-            "ok": True,
-            "entries": [entry.to_json() for entry in entries or ()],
-        }
-    if request.kind in (InputKind.TAP_TEXT, InputKind.TYPE_TEXT):
-        return {"ok": True, "text": request.text}
-    key = request.key.value if isinstance(request.key, PressKey) else request.key
-    return {"ok": True, "key": key}
-
-
-def _screen_json(screen: ScreenInfo) -> dict[str, object]:
-    """Serialize the typed screen metadata for the JSON-lines protocol."""
-    value: dict[str, object] = {"name": screen.name}
-    if screen.description is not None:
-        value["description"] = screen.description
-    if screen.needs_login is not None:
-        value["needs_login"] = screen.needs_login
-    if screen.sections:
-        value["sections"] = list(screen.sections)
-    if screen.record_id is not None:
-        value["record_id"] = screen.record_id
-    return value
-
-
-def _shot_request(request: dict[str, object]) -> ShotRequest:
-    """Validate JSON shot options and convert them to the typed session request."""
-    screen = request.get("screen")
-    out = request.get("out")
-    if "screen" in request and (not isinstance(screen, str) or not screen):
-        raise ValueError("screen must be a non-empty string")
-    if not isinstance(out, str):
-        raise ValueError("shot requires string out field")
-    if screen is None:
-        for field in ("section", "record_id", "language"):
-            if field in request:
-                raise ValueError(f"{field} requires screen")
-
-    theme: ShotTheme | None = None
-    if "theme" in request:
-        theme_value = request["theme"]
-        if theme_value not in (ShotTheme.DARK.value, ShotTheme.LIGHT.value):
-            raise ValueError("theme must be dark or light")
-        theme = ShotTheme(theme_value)
-
-    orientation: ShotOrientation | None = None
-    if "orientation" in request:
-        orientation_value = request["orientation"]
-        if orientation_value not in (
-            ShotOrientation.PORTRAIT.value,
-            ShotOrientation.LANDSCAPE.value,
-        ):
-            raise ValueError("orientation must be portrait or landscape")
-        orientation = ShotOrientation(orientation_value)
-
-    section: str | None = None
-    if "section" in request:
-        section_value = request["section"]
-        if not isinstance(section_value, str) or not section_value:
-            raise ValueError("section must be a non-empty string")
-        section = section_value
-
-    full = request.get("full", False)
-    if not isinstance(full, bool):
-        raise ValueError("full must be a boolean")
-
-    record_id: int | None = None
-    if "record_id" in request:
-        record_id_value = request["record_id"]
-        if not isinstance(record_id_value, int) or isinstance(record_id_value, bool):
-            raise ValueError("record_id must be an integer")
-        record_id = record_id_value
-
-    language: str | None = None
-    if "language" in request:
-        language_value = request["language"]
-        if not isinstance(language_value, str) or _LANGUAGE_CODE.fullmatch(language_value) is None:
-            raise ValueError("language must be a language code such as de or en-US")
-        language = language_value
-
-    return ShotRequest(
-        screen,
-        out,
-        theme,
-        section,
-        full,
-        record_id=record_id,
-        language=language,
-        orientation=orientation,
-    )
+def _copy_request_metadata(
+    response: dict[str, object], request: dict[str, object]
+) -> None:
+    """Echo the command and optional correlation id in every parsed reply."""
+    command = request.get("command")
+    if isinstance(command, str):
+        response["command"] = command
+    if "id" in request:
+        response["id"] = request["id"]

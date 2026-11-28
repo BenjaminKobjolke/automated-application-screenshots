@@ -107,6 +107,12 @@ class LiveSession:
         event = self.app_link.request({"command": "list_screens"}, "screens", _COMMAND_TIMEOUT)
         return event.screens or ()
 
+    def device_state(self) -> str | None:
+        """Describe the Android emulator when this session has one."""
+        if self.settings.target is not LiveTarget.ANDROID_EMULATOR or self.emulator is None:
+            return None
+        return self.emulator.device_state()
+
     def reset(self, app_settings: dict[str, Any] | None) -> None:
         """Reset the app and optionally replace settings used by later reconnects."""
         self._require_started()

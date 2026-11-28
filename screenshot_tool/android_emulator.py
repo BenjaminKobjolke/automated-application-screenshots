@@ -58,8 +58,12 @@ class AndroidEmulator:
     def device_state(self) -> str:
         """Describe adb visibility, owned process state, and available logs."""
         try:
-            listed = self._serial in self.running_serials() if self._serial else False
-        except (OSError, subprocess.SubprocessError) as error:
+            listed = (
+                self._serial in self.running_serials(emulator_runtime.ADB_TIMEOUT_SECONDS)
+                if self._serial
+                else False
+            )
+        except (OSError, subprocess.SubprocessError, emulator_runtime.LiveError) as error:
             state = f"could not query adb: {error}"
         else:
             state = (
@@ -94,7 +98,8 @@ class AndroidEmulator:
         if self._serial is None:
             raise RuntimeError("emulator is not started")
         # adb reverse keeps loopback available in airplane mode, unlike 10.0.2.2.
-        self._runner.run(
+        emulator_runtime.run_adb(
+            self._runner,
             [
                 self.adb_path(),
                 "-s",
@@ -114,21 +119,24 @@ class AndroidEmulator:
         serial = self._serial
         if port is None:
             return
-        if serial is not None:
-            self._runner.run(
-                [
-                    self.adb_path(),
-                    "-s",
-                    serial,
-                    "reverse",
-                    "--remove",
-                    f"tcp:{port}",
-                ],
-                capture_output=True,
-                check=False,
-                text=True,
-            )
-        self._reversed_port = None
+        try:
+            if serial is not None:
+                emulator_runtime.run_adb(
+                    self._runner,
+                    [
+                        self.adb_path(),
+                        "-s",
+                        serial,
+                        "reverse",
+                        "--remove",
+                        f"tcp:{port}",
+                    ],
+                    capture_output=True,
+                    check=False,
+                    text=True,
+                )
+        finally:
+            self._reversed_port = None
 
     def device_screen(self) -> DeviceScreen:
         """Create a full-device screen controller for the selected emulator."""
@@ -144,7 +152,7 @@ class AndroidEmulator:
         return emulator_runtime.wait_for_serial(
             self._process,
             timeout,
-            self.running_serials,
+            lambda remaining: self.running_serials(remaining),
             ignore,
         )
 

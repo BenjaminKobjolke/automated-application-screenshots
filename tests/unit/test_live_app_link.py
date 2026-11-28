@@ -153,6 +153,18 @@ def test_await_event_marks_connection_loss_as_live_connection_lost(tmp_path):
     assert "demo app closed the event connection" in str(error.value)
 
 
+def test_request_marks_send_failure_as_connection_lost_with_command(tmp_path):
+    link, server, daemon, _settings = make_link(tmp_path)
+    daemon.output = "flutter output"
+    server.send.side_effect = ConnectionResetError("connection reset")
+
+    with pytest.raises(LiveConnectionLost, match="list_screens") as error:
+        link.request({"command": "list_screens"}, "screens", 60)
+
+    assert "connection reset" in str(error.value)
+    assert error.value.output == "flutter output"
+
+
 def test_await_event_marks_flutter_exit_as_recoverable(tmp_path):
     link, _server, daemon, _settings = make_link(tmp_path)
     daemon.is_running.return_value = False

@@ -17,6 +17,8 @@ from .demo_protocol import KNOWN_EVENTS, DemoEvent, ScreenInfo, parse_event_line
 
 __all__ = ["KNOWN_EVENTS", "DemoEvent", "DemoServer", "ScreenInfo", "parse_event_line"]
 
+_SEND_TIMEOUT = 10.0
+
 
 class DemoServer:
     """Accepts one app connection and yields its events with timeouts."""
@@ -83,6 +85,8 @@ class DemoServer:
     def send(self, payload: dict[str, Any]) -> None:
         """Send one JSON line to the app (network mode commands)."""
         assert self._conn is not None, "send() before accept()"
+        # Bound the blocking socket so a frozen peer cannot hold the command loop.
+        self._conn.settimeout(_SEND_TIMEOUT)
         self._conn.sendall(json.dumps(payload).encode("utf-8") + b"\n")
 
     def read_exact(self, size: int, timeout: float) -> bytes:

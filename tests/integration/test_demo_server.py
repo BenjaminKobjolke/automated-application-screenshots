@@ -100,6 +100,22 @@ def test_next_event_times_out_on_silence():
         server.close()
 
 
+def test_send_uses_finite_timeout_on_accepted_connection():
+    server = DemoServer()
+    client = socket.create_connection(("127.0.0.1", server.port), timeout=5)
+    try:
+        assert server.accept(timeout=5)
+
+        server.send({"command": "list_screens"})
+
+        assert server._conn is not None
+        assert server._conn.gettimeout() is not None
+        assert client.recv(1024) == b'{"command": "list_screens"}\n'
+    finally:
+        client.close()
+        server.close()
+
+
 def test_reaccept_clears_previous_connection_and_partial_buffer():
     server = DemoServer()
     first = socket.create_connection(("127.0.0.1", server.port), timeout=5)

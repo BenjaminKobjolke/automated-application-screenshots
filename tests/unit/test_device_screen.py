@@ -102,6 +102,20 @@ def test_capture_png_uses_binary_adb_and_checks_signature():
     args, kwargs = runner.run.call_args
     assert args[0] == ["adb", "-s", "emulator-5554", "exec-out", "screencap", "-p"]
     assert kwargs["text"] is False
+    assert kwargs["timeout"] == 30.0
+
+
+def test_device_screen_adb_timeout_names_command():
+    from screenshot_tool.device_screen import DeviceScreen
+
+    runner = MagicMock(spec=subprocess)
+    runner.run.side_effect = subprocess.TimeoutExpired(
+        ["adb", "-s", "emulator-5554", "shell", "dumpsys", "activity"], 30
+    )
+    screen = DeviceScreen(runner, "adb", "emulator-5554")
+
+    with pytest.raises(LiveError, match=r"adb.*dumpsys.*activity"):
+        screen.foreground_package()
 
 
 def test_capture_png_rejects_non_png_data():
@@ -112,6 +126,19 @@ def test_capture_png_rejects_non_png_data():
     screen = DeviceScreen(runner, "adb", "emulator-5554")
 
     with pytest.raises(LiveError, match="PNG"):
+        screen.capture_png()
+
+
+def test_capture_png_adb_timeout_names_command():
+    from screenshot_tool.device_screen import DeviceScreen
+
+    runner = MagicMock(spec=subprocess)
+    runner.run.side_effect = subprocess.TimeoutExpired(
+        ["adb", "-s", "emulator-5554", "exec-out", "screencap", "-p"], 30
+    )
+    screen = DeviceScreen(runner, "adb", "emulator-5554")
+
+    with pytest.raises(LiveError, match=r"adb.*screencap"):
         screen.capture_png()
 
 

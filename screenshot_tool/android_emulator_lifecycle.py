@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from typing import Any, Protocol
 
 from screenshot_tool import android_emulator_runtime as emulator_runtime
+from screenshot_tool.app_logger import AppLogger
 from screenshot_tool.emulator_health import (
     SLOW_PACKAGE_MANAGER_SECONDS,
     package_manager_seconds,
@@ -35,7 +36,7 @@ class EmulatorLifecycleHost(Protocol):
     _has_saved_stay_on: bool
     _logs: Any
 
-    def running_serials(self) -> list[str]: ...
+    def running_serials(self, timeout: float | None = None) -> list[str]: ...
 
     def avd_name(self, serial: str) -> str: ...
 
@@ -56,7 +57,7 @@ def ensure_emulator(
     host: EmulatorLifecycleHost, avd: str | None, headless: bool, timeout: float
 ) -> str:
     """Reuse an online emulator or launch the requested AVD and await boot."""
-    existing = host.running_serials()
+    existing = host.running_serials(min(timeout, emulator_runtime.ADB_TIMEOUT_SECONDS))
     owned_serial = host._serial
     if avd is None:
         if existing:
@@ -134,7 +135,10 @@ def _stop_unlisted_owned_emulator(
 def stop_emulator(host: EmulatorLifecycleHost) -> None:
     """Shut down only a driver-owned emulator and restore reused-device settings."""
     try:
-        host._remove_reverse()
+        try:
+            host._remove_reverse()
+        except emulator_runtime.LiveError as error:
+            AppLogger.warning(str(error))
         if not host._owns_emulator:
             if host._has_saved_stay_on and host._serial is not None:
                 restore_command = (
@@ -142,12 +146,16 @@ def stop_emulator(host: EmulatorLifecycleHost) -> None:
                     if host._saved_stay_on is not None
                     else ["settings", "delete", "global", _STAY_ON_SETTING]
                 )
-                host._runner.run(
-                    [host.adb_path(), "-s", host._serial, "shell", *restore_command],
-                    capture_output=True,
-                    check=False,
-                    text=True,
-                )
+                try:
+                    emulator_runtime.run_adb(
+                        host._runner,
+                        [host.adb_path(), "-s", host._serial, "shell", *restore_command],
+                        capture_output=True,
+                        check=False,
+                        text=True,
+                    )
+                except emulator_runtime.LiveError as error:
+                    AppLogger.warning(str(error))
             host._saved_stay_on = None
             host._has_saved_stay_on = False
             return
@@ -155,12 +163,16 @@ def stop_emulator(host: EmulatorLifecycleHost) -> None:
         host._has_saved_stay_on = False
         serial = host._serial
         if serial:
-            host._runner.run(
-                [host.adb_path(), "-s", serial, "emu", "kill"],
-                capture_output=True,
-                check=False,
-                text=True,
-            )
+            try:
+                emulator_runtime.run_adb(
+                    host._runner,
+                    [host.adb_path(), "-s", serial, "emu", "kill"],
+                    capture_output=True,
+                    check=False,
+                    text=True,
+                )
+            except emulator_runtime.LiveError as error:
+                AppLogger.warning(str(error))
         if host._process is not None and host._process.poll() is None:
             emulator_runtime.kill_process_tree(host._process.pid)
         host._process = None

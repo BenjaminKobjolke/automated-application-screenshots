@@ -9,6 +9,7 @@ from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from typing import Any, Protocol
 
+from screenshot_tool.android_emulator_runtime import run_adb
 from screenshot_tool.app_logger import AppLogger
 
 _POLL_SECONDS = 0.25
@@ -104,7 +105,8 @@ class EmulatorRotation:
         )
 
     def _run(self, *arguments: str) -> str:
-        result = self._runner.run(
+        result = run_adb(
+            self._runner,
             [self._adb, "-s", self._serial, *arguments],
             capture_output=True,
             check=True,

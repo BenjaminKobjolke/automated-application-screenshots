@@ -31,6 +31,10 @@ Add a `live` object to the app's screenshot config:
 `port` is the local TCP port the app connects to. The tool derives `AUTOMATION_HOST` as `127.0.0.1:<port>` for both targets. On Android, the tool sets up `adb reverse tcp:<port> tcp:<port>` before Flutter starts and removes it when the session stops. This keeps the automation connection available in airplane mode; other app traffic still uses the emulator's network. `flutter` is a command prefix (`["flutter"]` by default), `run_args` adds arguments to `flutter run`, and `project_dir` resolves relative to the config file. `app_settings` are sent with each reset. A live `reset` command may replace them for this session; the replacement is used for later resets and after app reconnects. Keep credentials out of committed example configs; use a local config for test account tokens.
 
 `start_timeout` covers Flutter's build, app launch, and connection. Reload, navigation, and screenshot requests have a 60 second timeout.
+Android adb commands made during live operations are bounded to 30 seconds. A timeout or other
+command failure returns an `ok:false` response that names the component or command that failed.
+The live tool writes each command and its success, error, or timeout duration to stderr; when an
+Android command fails, it also logs the available emulator device state.
 
 ## Run and send commands
 

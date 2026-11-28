@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock
 
+import pytest
 from live_cli_helpers import make_cli, responses
 
 from screenshot_tool.demo_server import ScreenInfo
@@ -12,6 +13,7 @@ from screenshot_tool.live_session import (
     ReloadResult,
     ShotRequest,
 )
+from screenshot_tool.live_types import LiveEventTimeout
 
 
 def test_dispatches_commands_and_echoes_ids():
@@ -122,3 +124,66 @@ def test_eof_without_commands_stops_session():
     cli.run()
 
     session.stop.assert_called_once_with()
+
+
+@pytest.mark.parametrize("error", [OSError("socket closed"), RuntimeError("unexpected")])
+def test_unexpected_session_errors_reply_and_keep_going(error):
+    session = MagicMock(spec=LiveSession)
+    session.start.return_value = "android-emulator"
+    session.screens.side_effect = [error, ()]
+    cli, output = make_cli(
+        [
+            '{"command":"start"}',
+            '{"command":"screens","id":"failed"}',
+            '{"command":"screens","id":"next"}',
+            '{"command":"stop"}',
+        ],
+        session,
+    )
+
+    cli.run()
+
+    result = responses(output)
+    assert result[1]["ok"] is False
+    assert result[1]["command"] == "screens"
+    assert result[1]["id"] == "failed"
+    assert str(error) in str(result[1]["error"])
+    assert result[2] == {"ok": True, "command": "screens", "id": "next", "screens": []}
+
+
+def test_stalled_app_link_returns_existing_timeout_error_without_waiting(monkeypatch):
+    from screenshot_tool import live_cli
+
+    session = MagicMock(spec=LiveSession)
+    session.start.return_value = "windows"
+    session.screens.side_effect = LiveEventTimeout("timed out waiting for app event 'screens'")
+    clock = iter((100.0, 100.0, 200.0, 260.0))
+    monkeypatch.setattr(live_cli, "_now", lambda: "10:00:00")
+    monkeypatch.setattr(live_cli, "monotonic", lambda: next(clock))
+    cli, output = make_cli(['{"command":"start"}', '{"command":"screens","id":8}'], session)
+
+    cli.run()
+
+    assert responses(output)[1] == {
+        "ok": False,
+        "error": "timed out waiting for app event 'screens'",
+        "command": "screens",
+        "id": 8,
+    }
+
+
+def test_command_timing_and_failed_android_device_state_are_logged(caplog):
+    session = MagicMock(spec=LiveSession)
+    session.start.return_value = "emulator-5554"
+    session.device_state.return_value = "emulator-5554 is not listed by adb"
+    session.screens.side_effect = LiveError("adb command failed: adb devices")
+    cli, _output = make_cli(['{"command":"start"}', '{"command":"screens","id":9}'], session)
+    caplog.set_level("INFO", logger="screenshot_tool")
+
+    cli.run()
+
+    assert "Received 'start'" in caplog.text
+    assert "'start' succeeded in" in caplog.text
+    assert "Received 'screens'" in caplog.text
+    assert "'screens' failed in" in caplog.text
+    assert "emulator-5554 is not listed by adb" in caplog.text

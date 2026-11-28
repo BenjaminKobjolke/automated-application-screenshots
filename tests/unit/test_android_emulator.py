@@ -8,7 +8,9 @@ from unittest.mock import MagicMock
 import pytest
 from android_fakes import completed, env_with_sdk, fake_sdk
 
+from screenshot_tool import android_emulator_runtime
 from screenshot_tool.android_emulator import AndroidEmulator
+from screenshot_tool.live_types import LiveError
 
 
 def test_running_serials_parses_only_online_emulators(tmp_path: Path):
@@ -28,7 +30,48 @@ def test_running_serials_parses_only_online_emulators(tmp_path: Path):
         capture_output=True,
         check=True,
         text=True,
+        timeout=30.0,
     )
+
+
+def test_running_serials_uses_finite_default_timeout(tmp_path: Path):
+    sdk = fake_sdk(tmp_path / "sdk")
+    runner = MagicMock(spec=subprocess)
+    runner.run.side_effect = subprocess.TimeoutExpired(["adb", "devices"], 30)
+    emulator = AndroidEmulator(runner=runner, environ=env_with_sdk(sdk))
+
+    with pytest.raises(LiveError, match=r"adb command timed out: .* devices"):
+        emulator.running_serials()
+
+    assert runner.run.call_args.kwargs["timeout"] == 30.0
+
+
+def test_wait_for_serial_bounds_each_adb_discovery_by_remaining_deadline():
+    observed_timeouts: list[float] = []
+
+    def list_serials(timeout: float) -> list[str]:
+        observed_timeouts.append(timeout)
+        return []
+
+    with pytest.raises(TimeoutError, match="did not connect"):
+        android_emulator_runtime.wait_for_serial(None, 0.01, list_serials)
+
+    assert observed_timeouts
+    assert 0 < observed_timeouts[0] <= 0.01
+
+
+def test_wait_for_boot_bounds_getprop_and_converts_timeout():
+    runner = MagicMock(spec=subprocess)
+    runner.run.side_effect = [
+        completed(),
+        subprocess.TimeoutExpired(["adb", "shell", "getprop"], 0.5),
+    ]
+
+    with pytest.raises(TimeoutError, match="did not finish booting"):
+        android_emulator_runtime.wait_for_boot(runner, "adb", "emulator-5554", 0.5)
+
+    getprop_call = runner.run.call_args_list[1]
+    assert 0 < getprop_call.kwargs["timeout"] <= 0.5
 
 
 def test_ensure_reuses_running_emulator_without_starting_one(tmp_path: Path):
@@ -125,7 +168,12 @@ def test_stop_restores_stay_on_setting_of_reused_emulator(
     if restore_value is not None:
         expected_restore.append(restore_value)
     assert restore.args[0] == expected_restore
-    assert restore.kwargs == {"capture_output": True, "check": False, "text": True}
+    assert restore.kwargs == {
+        "capture_output": True,
+        "check": False,
+        "text": True,
+        "timeout": 30.0,
+    }
     assert not any("emu" in call.args[0] for call in runner.run.call_args_list[-1:])
 
 
@@ -161,6 +209,27 @@ def test_device_state_reports_listed_emulator():
     emulator.running_serials = MagicMock(return_value=["emulator-5554"])
 
     assert emulator.device_state() == "emulator-5554 is still listed by adb"
+
+
+def test_device_state_reports_adb_timeout_and_bounds_query(tmp_path: Path):
+    sdk = fake_sdk(tmp_path / "sdk")
+    runner = MagicMock(spec=subprocess)
+    runner.run.side_effect = subprocess.TimeoutExpired(["adb", "devices"], 30)
+    emulator = AndroidEmulator(runner=runner, environ=env_with_sdk(sdk))
+    emulator._serial = "emulator-5554"
+
+    assert "could not query adb" in emulator.device_state()
+    assert runner.run.call_args.kwargs["timeout"] == 30.0
+
+
+def test_avd_name_adb_timeout_names_command(tmp_path: Path):
+    sdk = fake_sdk(tmp_path / "sdk")
+    runner = MagicMock(spec=subprocess)
+    runner.run.side_effect = subprocess.TimeoutExpired(["adb", "emu", "avd", "name"], 30)
+    emulator = AndroidEmulator(runner=runner, environ=env_with_sdk(sdk))
+
+    with pytest.raises(LiveError, match=r"adb.*emu.*avd.*name"):
+        emulator.avd_name("emulator-5554")
 
 
 def test_logcat_stops_without_shutting_down_reused_emulator(tmp_path, monkeypatch):

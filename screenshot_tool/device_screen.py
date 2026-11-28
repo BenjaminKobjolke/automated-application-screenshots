@@ -8,6 +8,7 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from screenshot_tool.android_emulator_runtime import run_adb
 from screenshot_tool.emulator_rotation import parse_display_rotation, parse_wm_size
 from screenshot_tool.live_input import TextMatch
 from screenshot_tool.live_types import LiveError
@@ -118,7 +119,8 @@ class DeviceScreen:
     def capture_png(self) -> bytes:
         """Capture the full device display as PNG bytes."""
         try:
-            result = self._runner.run(
+            result = run_adb(
+                self._runner,
                 self._args("exec-out", "screencap", "-p"),
                 capture_output=True,
                 check=True,
@@ -168,7 +170,8 @@ class DeviceScreen:
 
     def _run(self, *arguments: str) -> str:
         try:
-            result = self._runner.run(
+            result = run_adb(
+                self._runner,
                 self._args(*arguments),
                 capture_output=True,
                 check=True,

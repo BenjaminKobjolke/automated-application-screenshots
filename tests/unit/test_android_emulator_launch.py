@@ -118,6 +118,7 @@ def test_ensure_starts_and_owns_headless_emulator(tmp_path: Path):
         capture_output=True,
         check=False,
         text=True,
+        timeout=android_emulator_runtime.ADB_TIMEOUT_SECONDS,
     )
 
 

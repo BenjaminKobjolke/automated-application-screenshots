@@ -75,7 +75,13 @@ class LiveAppLink:
 
     def request(self, request: dict[str, object], expected: str, timeout: float) -> DemoEvent:
         """Send one app command and wait for its matching event."""
-        self.server.send(request)
+        try:
+            self.server.send(request)
+        except OSError as error:
+            command = request.get("command", "unknown")
+            raise LiveConnectionLost(
+                f"app connection lost while sending {command!r}: {error}", self.daemon.output
+            ) from error
         return self.await_event(expected, timeout)
 
     def await_event(self, expected: str, timeout: float) -> DemoEvent:
